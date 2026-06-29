@@ -8,8 +8,18 @@ import { VoiceInteraction } from '@/components/dashboard/voice-interaction'
 import { EnergyUsage } from '@/components/dashboard/energy-usage'
 import { SecurityAlerts } from '@/components/dashboard/security-alerts'
 import { DesignPrinciples } from '@/components/dashboard/design-principles'
+import { ShortcutsDialog } from '@/components/dashboard/shortcuts-dialog'
+import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts'
+import { useState } from 'react'
 
 export default function Home() {
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+
+  useKeyboardShortcuts([
+    { key: '?', shift: true, handler: () => setShortcutsOpen((v) => !v) },
+    { key: 'Escape', handler: () => setShortcutsOpen(false) },
+  ])
+
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       <a
@@ -69,6 +79,8 @@ export default function Home() {
           </footer>
         </main>
       </div>
+
+      <ShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   )
 }
