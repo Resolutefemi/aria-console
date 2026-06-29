@@ -1,6 +1,7 @@
 'use client'
 
 import { useSyncExternalStore } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import {
   Search,
   Bell,
@@ -81,7 +82,71 @@ export function TopBar() {
           <Moon className="w-5 h-5 hidden dark:block" />
           <Sun className="w-5 h-5 dark:hidden" />
         </button>
+
+        <NotificationsBell />
+
+        <button
+          type="button"
+          className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-md hover:bg-muted transition-colors"
+          aria-label="Account menu"
+        >
+          <div
+            className="w-7 h-7 rounded-full bg-gradient-to-br from-accent/80 to-accent flex items-center justify-center text-[11px] font-semibold text-accent-foreground"
+            aria-hidden="true"
+          >
+            OK
+          </div>
+          <div className="hidden md:flex flex-col items-start leading-tight">
+            <span className="text-xs font-medium">Ola Kperogi</span>
+            <span className="text-[10px] text-muted-foreground">Admin</span>
+          </div>
+        </button>
       </div>
     </header>
+  )
+}
+
+function NotificationsBell() {
+  const [open, setOpen] = useState(false)
+  const notifications = [
+    { t: 'Critical: Unrecognized voice profile', s: '2m ago', c: 'text-destructive' },
+    { t: 'Device "Kitchen Display" went offline', s: '18m ago', c: 'text-amber-500' },
+    { t: 'Energy spike detected on Bedroom Hub', s: '1h ago', c: 'text-amber-500' },
+  ]
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label={`Notifications, 3 unread${open ? ', menu open' : ''}`}
+        aria-expanded={open}
+        className="relative p-2 rounded-md hover:bg-muted transition-colors"
+      >
+        <Bell className="w-5 h-5" />
+        <span
+          className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-destructive ring-2 ring-background"
+          aria-hidden="true"
+        />
+      </button>
+      {open && (
+        <div
+          role="dialog"
+          aria-label="Notifications"
+          className="absolute right-0 mt-2 w-80 rounded-lg border border-border bg-popover shadow-lg p-2 z-50"
+        >
+          <div className="px-2 py-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+            Recent · 3 unread
+          </div>
+          <ul className="space-y-0.5">
+            {notifications.map((n, i) => (
+              <li key={i} className="px-2 py-2 rounded-md hover:bg-muted cursor-pointer">
+                <div className="text-sm leading-snug">{n.t}</div>
+                <div className={`text-[11px] mt-0.5 ${n.c} text-muted-foreground`}>{n.s}</div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   )
 }
