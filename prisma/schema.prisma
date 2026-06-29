@@ -15,19 +15,19 @@ datasource db {
 
 /// A paired device in the voice-controlled smartphone system.
 model Device {
-  id        String   @id @default(cuid())
-  deviceId  String   @unique /// Human-readable ID like "D-001"
-  name      String
-  type      DeviceType
-  room      String
-  status    DeviceStatus @default(ONLINE)
-  battery   Int      @default(100) /// 0-100
-  signal    Int      @default(-60) /// dBm
-  ipAddress String?  @map("ip_address")
-  firmware  String?  /// e.g. "3.8.2"
-  lastSeenAt DateTime @default(now()) @map("last_seen_at")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(cuid())
+  deviceId    String   @unique @map("device_id") /// Human-readable ID like "D-001"
+  name        String
+  type        DeviceType
+  room        String
+  status      DeviceStatus @default(ONLINE)
+  battery     Int      @default(100) /// 0-100
+  signal      Int      @default(-60) /// dBm
+  ipAddress   String?  @map("ip_address")
+  firmware    String?  /// e.g. "3.8.2"
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   voiceCommands  VoiceCommand[]
   energyReadings EnergyReading[]
@@ -61,7 +61,7 @@ model VoiceCommand {
   intent     String   /// e.g. "lights.on", "alarm.set"
   confidence Float    /// 0.0 to 1.0
   status     CommandStatus @default(SUCCESS)
-  deviceId   String
+  deviceId   String   @map("device_id")
   device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
   issuedAt   DateTime @default(now()) @map("issued_at")
   createdAt  DateTime @default(now()) @map("created_at")
@@ -80,9 +80,9 @@ enum CommandStatus {
 /// An energy consumption reading from a device at a specific timestamp.
 model EnergyReading {
   id          String   @id @default(cuid())
-  deviceId    String
+  deviceId    String   @map("device_id")
   device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  kilowatts   Float    @map("kilowatts") /// Instantaneous power in kW
+  kilowatts   Float    /// Instantaneous power in kW
   wattHours   Float    @map("watt_hours") /// Energy consumed in this interval (Wh)
   recordedAt  DateTime @default(now()) @map("recorded_at")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -99,9 +99,9 @@ model SecurityAlert {
   description String
   severity    AlertSeverity @default(INFO)
   status      AlertStatus    @default(OPEN)
-  deviceId    String?
+  deviceId    String?  @map("device_id")
   device      Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
-  metadata    Json?     /// Additional context (Postgres jsonb)
+  metadata    Json?    /// Additional context (Postgres jsonb)
   triggeredAt DateTime @default(now()) @map("triggered_at")
   acknowledgedAt DateTime? @map("acknowledged_at")
   acknowledgedBy String?  @map("acknowledged_by")
@@ -154,16 +154,16 @@ enum UserRole {
 
 /// An immutable record of operator actions for compliance and debugging.
 model AuditLog {
-  id        String   @id @default(cuid())
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  action    String   /// e.g. "alert.acknowledge", "device.refresh"
-  resource  String   /// e.g. "security_alert", "device"
-  resourceId String? @map("resource_id")
-  metadata  Json?     /// JSON-encoded context (Postgres jsonb)
-  ipAddress String?  @map("ip_address")
-  userAgent String?  @map("user_agent")
-  createdAt DateTime @default(now()) @map("created_at")
+  id         String   @id @default(cuid())
+  userId     String?  @map("user_id")
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String   /// e.g. "alert.acknowledge", "device.refresh"
+  resource   String   /// e.g. "security_alert", "device"
+  resourceId String?  @map("resource_id")
+  metadata   Json?    /// JSON-encoded context (Postgres jsonb)
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   @@index([userId])
   @@index([action])
