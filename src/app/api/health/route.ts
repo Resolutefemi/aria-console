@@ -4,8 +4,8 @@ import { db } from '@/lib/db'
 export async function GET() {
   const start = Date.now()
   try {
-    // Simple database ping
-    await db.\$queryRaw\`SELECT 1\`
+    // Simple database ping — count devices (works on both SQLite and Postgres)
+    await db.device.count()
     const durationMs = Date.now() - start
 
     return NextResponse.json({
