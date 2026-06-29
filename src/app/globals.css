@@ -148,3 +148,29 @@
 .dark ::-webkit-scrollbar-thumb:hover {
   background: oklch(0.55 0.005 60 / 0.6);
 }
+
+/* Voice waveform animation */
+@keyframes waveform {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
+.waveform-bar {
+  animation: waveform 1.2s ease-in-out infinite;
+  transform-origin: center;
+}
+
+/* Subtle pulse for live indicators */
+@keyframes soft-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.live-dot {
+  animation: soft-pulse 2s ease-in-out infinite;
+}
+
+/* Status dot glow */
+.status-glow {
+  box-shadow: 0 0 0 3px var(--glow-color, transparent);
+}
