@@ -95,6 +95,11 @@ async function main() {
     { transcript: 'Send a message to mum saying I will call later', intent: 'message.send', confidence: 0.88, status: 'SUCCESS', deviceId: devices[0].id, minutesAgo: 88 },
     { transcript: 'Add milk to my shopping list', intent: 'list.add', confidence: 0.93, status: 'SUCCESS', deviceId: devices[1].id, minutesAgo: 95 },
     { transcript: 'Skip this song', intent: 'media.skip', confidence: 0.91, status: 'SUCCESS', deviceId: devices[3].id, minutesAgo: 110 },
+    { transcript: 'Set a timer for 12 minutes', intent: 'timer.set', confidence: 0.97, status: 'SUCCESS', deviceId: devices[2].id, minutesAgo: 125 },
+    { transcript: 'How many calories in an apple', intent: 'nutrition.query', confidence: 0.85, status: 'SUCCESS', deviceId: devices[1].id, minutesAgo: 140 },
+    { transcript: 'Open the garage door', intent: 'door.open', confidence: 0.42, status: 'FAILED', deviceId: devices[7].id, minutesAgo: 155 },
+    { transcript: 'Translate hello to Spanish', intent: 'translate', confidence: 0.94, status: 'SUCCESS', deviceId: devices[0].id, minutesAgo: 170 },
+    { transcript: 'How far is the airport from here', intent: 'distance.query', confidence: 0.71, status: 'PARTIAL', deviceId: devices[0].id, minutesAgo: 185 },
   ]
 
   for (const c of commands) {
