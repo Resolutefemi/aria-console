@@ -28,10 +28,10 @@ const bottomItems: NavItem[] = [
 
 const navItems: NavItem[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'devices', label: 'Devices', icon: Smartphone, badge: '12' },
+  { id: 'devices', label: 'Devices', icon: Smartphone },
   { id: 'voice', label: 'Voice', icon: Mic },
   { id: 'energy', label: 'Energy', icon: Zap },
-  { id: 'security', label: 'Security', icon: ShieldCheck, badge: '2', badgeTone: 'critical' },
+  { id: 'security', label: 'Security', icon: ShieldCheck },
 ]
 
 export function Sidebar() {

@@ -13,6 +13,7 @@ import {
   User as UserIcon,
 } from 'lucide-react'
 import { useAuth } from '@/components/auth/auth-provider'
+import { AccessibilityPanel } from '@/components/accessibility/accessibility-panel'
 
 // Stable external store for the live clock — re-renders once per second.
 function subscribe(callback: () => void) {
@@ -85,6 +86,8 @@ export function TopBar() {
           <Moon className="w-5 h-5 hidden dark:block" />
           <Sun className="w-5 h-5 dark:hidden" />
         </button>
+
+        <AccessibilityPanel />
 
         <NotificationsBell />
 
