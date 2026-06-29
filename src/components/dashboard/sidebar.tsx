@@ -123,6 +123,25 @@ export function Sidebar() {
           })}
         </ul>
       </nav>
+
+      {/* System status footer */}
+      <div className="border-t border-border p-3">
+        <div className="rounded-md border border-border bg-card p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-wider text-muted-foreground">System</span>
+            <div className="flex items-center gap-1.5">
+              <span
+                className="w-1.5 h-1.5 rounded-full bg-emerald-500 live-dot"
+                aria-hidden="true"
+              />
+              <span className="text-[11px] font-medium">Operational</span>
+            </div>
+          </div>
+          <div className="text-[11px] text-muted-foreground font-mono">
+            Uptime 14d 6h 22m
+          </div>
+        </div>
+      </div>
     </aside>
   )
 }
