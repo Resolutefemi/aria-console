@@ -3,6 +3,11 @@
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { TopBar } from '@/components/dashboard/top-bar'
 import { StatsCards } from '@/components/dashboard/stats-cards'
+import { DeviceMonitoring } from '@/components/dashboard/device-monitoring'
+import { VoiceInteraction } from '@/components/dashboard/voice-interaction'
+import { EnergyUsage } from '@/components/dashboard/energy-usage'
+import { SecurityAlerts } from '@/components/dashboard/security-alerts'
+import { DesignPrinciples } from '@/components/dashboard/design-principles'
 
 export default function Home() {
   return (
@@ -20,13 +25,48 @@ export default function Home() {
         <TopBar />
 
         <main id="main-content" className="flex-1 px-4 lg:px-6 py-5 space-y-5 max-w-[1600px] w-full mx-auto" role="main">
-          <div>
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Operations console</p>
-            <h1 className="text-xl font-semibold tracking-tight mt-0.5">Good afternoon, Ola</h1>
-            <p className="text-sm text-muted-foreground mt-1">Here&apos;s what&apos;s happening across your voice-controlled devices.</p>
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
+            <div>
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Operations console</p>
+              <h1 className="text-xl font-semibold tracking-tight mt-0.5">Good afternoon, Ola</h1>
+              <p className="text-sm text-muted-foreground mt-1">Here&apos;s what&apos;s happening across your voice-controlled devices.</p>
+            </div>
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-border bg-card">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 live-dot" aria-hidden="true" />
+                Last sync · 14:32:18
+              </span>
+            </div>
           </div>
 
           <StatsCards />
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <DeviceMonitoring />
+            <VoiceInteraction />
+          </div>
+
+          <EnergyUsage />
+
+          <SecurityAlerts />
+
+          <DesignPrinciples />
+
+          <footer className="pt-4 pb-2 border-t border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-[11px] text-muted-foreground" role="contentinfo">
+            <div className="flex items-center gap-3">
+              <span className="font-mono">Aria Console v4.2.1</span>
+              <span aria-hidden="true">·</span>
+              <span>Build 2026.06.29</span>
+              <span aria-hidden="true">·</span>
+              <span>Region: Lagos (WAT)</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
+              <a href="#" className="hover:text-foreground transition-colors">Terms</a>
+              <a href="#" className="hover:text-foreground transition-colors">Status</a>
+              <a href="#" className="hover:text-foreground transition-colors">Docs</a>
+            </div>
+          </footer>
         </main>
       </div>
     </div>
