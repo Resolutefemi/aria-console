@@ -19,6 +19,7 @@ import {
 import { useApi } from '@/hooks/use-api'
 import { cn } from '@/lib/utils'
 import { toCsv, downloadCsv, fileTimestamp } from '@/lib/csv'
+import { useToast } from '@/hooks/use-toast'
 
 type Severity = 'CRITICAL' | 'WARNING' | 'INFO' | 'SUCCESS'
 
@@ -63,6 +64,7 @@ export function SecurityAlerts() {
     refetchInterval: 20000,
   })
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const { toast } = useToast()
 
   const alerts = data?.alerts ?? []
   const criticalCount = alerts.filter((a) => a.severity === 'CRITICAL' && a.status === 'OPEN').length
@@ -87,8 +89,13 @@ export function SecurityAlerts() {
         }),
       })
       refetch()
+      toast({
+        title: status === 'ACKNOWLEDGED' ? 'Alert acknowledged' : status === 'DISMISSED' ? 'Alert dismissed' : 'Alert resolved',
+        description: `Action recorded in audit log.`,
+      })
     } catch (e) {
       console.error('Failed to update alert:', e)
+      toast({ title: 'Failed to update alert', variant: 'destructive' })
     } finally {
       setUpdatingId(null)
     }
