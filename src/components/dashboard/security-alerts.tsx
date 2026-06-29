@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 import { cn } from '@/lib/utils'
+import { toCsv, downloadCsv, fileTimestamp } from '@/lib/csv'
 
 type Severity = 'CRITICAL' | 'WARNING' | 'INFO' | 'SUCCESS'
 
@@ -97,7 +98,28 @@ export function SecurityAlerts() {
           </div>
           <p className="text-[11px] text-muted-foreground mt-0.5">Real-time monitoring · Privacy-first</p>
         </div>
-        <button type="button" onClick={() => refetch()} className="px-2.5 py-1.5 rounded-md border border-border hover:bg-muted transition-colors text-xs">Refresh</button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => {
+              const csv = toCsv(alerts.map((a) => ({
+                title: a.title,
+                severity: a.severity,
+                status: a.status,
+                device: a.device?.name ?? 'System-wide',
+                triggeredAt: new Date(a.triggeredAt).toISOString(),
+                description: a.description,
+              })))
+              downloadCsv(`aria-alerts-${fileTimestamp()}.csv`, csv)
+            }}
+            disabled={alerts.length === 0}
+            className="px-2.5 py-1.5 rounded-md border border-border hover:bg-muted transition-colors text-xs disabled:opacity-50"
+            aria-label="Export alerts as CSV"
+          >
+            Export
+          </button>
+          <button type="button" onClick={() => refetch()} className="px-2.5 py-1.5 rounded-md border border-border hover:bg-muted transition-colors text-xs">Refresh</button>
+        </div>
       </header>
 
       <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-border bg-emerald-500/5">
