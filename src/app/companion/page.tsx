@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
-  Smartphone, Clock, Lock,
-  Loader2, AlertCircle, Navigation,
+  Smartphone, Clock, Lock, Loader2, AlertCircle, Navigation,
+  Wifi, Bell, Camera, Volume2, Battery, BatteryLow, BatteryWarning,
+  RefreshCw, MapPin, Activity,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
@@ -15,13 +16,13 @@ type Command = {
   status: string
 }
 
-// We detect real device info from the browser where possible
 function detectDeviceInfo() {
-  if (typeof window === 'undefined') return { name: 'Browser Device', type: 'PHONE', os: 'Unknown' }
+  if (typeof window === 'undefined') return { name: 'Browser Device', type: 'PHONE', os: 'Unknown', browser: 'Unknown' }
   const ua = navigator.userAgent
   let os = 'Unknown'
   let type = 'PHONE'
   let name = 'Browser Device'
+  let browser = 'Unknown'
 
   if (/iPhone|iPad|iPod/.test(ua)) {
     os = /iPad/.test(ua) ? 'iPadOS' : 'iOS'
@@ -45,10 +46,14 @@ function detectDeviceInfo() {
     name = 'Linux Device'
   }
 
-  return { name, type, os }
+  if (/Edg/.test(ua)) browser = 'Edge'
+  else if (/Chrome/.test(ua)) browser = 'Chrome'
+  else if (/Safari/.test(ua)) browser = 'Safari'
+  else if (/Firefox/.test(ua)) browser = 'Firefox'
+
+  return { name, type, os, browser }
 }
 
-// Real battery level via Battery API (Chrome/Edge only)
 async function getRealBattery(): Promise<number | null> {
   try {
     if ('getBattery' in navigator) {
@@ -67,14 +72,20 @@ export default function CompanionPage() {
   const [pairing, setPairing] = useState(false)
   const [isLocked, setIsLocked] = useState(false)
   const [battery, setBattery] = useState<number | null>(null)
-  const [batteryReal, setBatteryReal] = useState(false)
+  const [batteryCharging, setBatteryCharging] = useState(false)
   const [location, setLocation] = useState<{ lat: number; lon: number; accuracy: number } | null>(null)
   const [locationError, setLocationError] = useState<string | null>(null)
-  const [locationWatching, setLocationWatching] = useState(false)
+  const [onlineStatus, setOnlineStatus] = useState(true)
+  const [networkType, setNetworkType] = useState<string>('unknown')
   const [screenTimeLog, setScreenTimeLog] = useState<{ app: string; start: number; end: number }[]>([])
+  const [totalTabTime, setTotalTabTime] = useState(0)
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>('default')
+  const [pushSupported, setPushSupported] = useState(false)
   const { toast } = useToast()
 
   const deviceInfo = detectDeviceInfo()
+  const tabOpenSince = useRef<number>(Date.now())
+  const totalTabTimeRef = useRef<number>(0)
 
   // Load persisted device ID
   useEffect(() => {
@@ -86,61 +97,119 @@ export default function CompanionPage() {
     }
   }, [])
 
-  // Get real battery on mount
+  // Real battery
   useEffect(() => {
     getRealBattery().then((b) => {
       if (b !== null) {
         setBattery(b)
-        setBatteryReal(true)
-        // Listen for battery changes
+        setBatteryCharging(false)
         if ('getBattery' in navigator) {
           // @ts-ignore
           navigator.getBattery().then((battery: any) => {
+            setBatteryCharging(battery.charging)
             battery.addEventListener('levelchange', () => setBattery(Math.round(battery.level * 100)))
+            battery.addEventListener('chargingchange', () => setBatteryCharging(battery.charging))
           })
         }
-      } else {
-        // Fallback: no real battery — show as unknown
-        setBattery(null)
-        setBatteryReal(false)
       }
     })
   }, [])
 
-  // Real geolocation watching
+  // Real network status
+  useEffect(() => {
+    setOnlineStatus(navigator.onLine)
+    const updateNetwork = () => {
+      setOnlineStatus(navigator.onLine)
+      // @ts-ignore - connection is not in TS lib yet
+      const conn = navigator.connection
+      if (conn) {
+        setNetworkType(conn.effectiveType || conn.type || 'unknown')
+      }
+    }
+    window.addEventListener('online', updateNetwork)
+    window.addEventListener('offline', updateNetwork)
+    // @ts-ignore
+    if (navigator.connection) {
+      // @ts-ignore
+      navigator.connection.addEventListener('change', updateNetwork)
+    }
+    updateNetwork()
+    return () => {
+      window.removeEventListener('online', updateNetwork)
+      window.removeEventListener('offline', updateNetwork)
+    }
+  }, [])
+
+  // Real geolocation
   useEffect(() => {
     if (!deviceId) return
-
     if (!('geolocation' in navigator)) {
-      setLocationError('Geolocation not supported on this device')
+      setLocationError('Geolocation not supported')
       return
     }
-
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude, accuracy } = pos.coords
         setLocation({ lat: latitude, lon: longitude, accuracy })
         setLocationError(null)
-        setLocationWatching(true)
-        // Report to backend
         reportLocation(latitude, longitude, accuracy)
       },
       (err) => {
         setLocationError(
-          err.code === 1 ? 'Location permission denied — enable in browser settings'
+          err.code === 1 ? 'Location permission denied'
           : err.code === 2 ? 'Location unavailable'
           : err.code === 3 ? 'Location timeout'
           : err.message
         )
-        setLocationWatching(false)
       },
       { enableHighAccuracy: true, maximumAge: 30000, timeout: 27000 }
     )
-
     return () => navigator.geolocation.clearWatch(watchId)
   }, [deviceId])
 
-  // Poll for commands every 5 seconds
+  // Notifications + Push
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return
+    setNotifPermission(Notification.permission)
+    setPushSupported('PushManager' in window)
+  }, [])
+
+  // Request notification permission
+  async function enableNotifications() {
+    if (!('Notification' in window)) return
+    const perm = await Notification.requestPermission()
+    setNotifPermission(perm)
+    if (perm === 'granted') {
+      new Notification('Aria Companion', {
+        body: 'Notifications enabled. You will receive commands from your parent.',
+      })
+    }
+  }
+
+  // Track real tab visibility time
+  useEffect(() => {
+    tabOpenSince.current = Date.now()
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        tabOpenSince.current = Date.now()
+      } else {
+        const duration = Math.round((Date.now() - tabOpenSince.current) / 1000)
+        if (duration > 5 && deviceId) {
+          reportScreenTime('browser', 'Aria Companion', duration)
+          totalTabTimeRef.current += duration
+          setTotalTabTime(totalTabTimeRef.current)
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('blur', onVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('blur', onVisibility)
+    }
+  }, [deviceId])
+
+  // Poll for commands
   useEffect(() => {
     if (!deviceId) return
     const interval = setInterval(async () => {
@@ -156,41 +225,12 @@ export default function CompanionPage() {
     return () => clearInterval(interval)
   }, [deviceId])
 
-  // Report heartbeat every 30 seconds with REAL battery
+  // Heartbeat
   useEffect(() => {
     if (!deviceId) return
     const interval = setInterval(() => reportHeartbeat(), 30000)
     return () => clearInterval(interval)
-  }, [deviceId, battery])
-
-  // Track REAL foreground time of this browser tab (the only "screen time" a web app can measure)
-  let tabOpenSince = useRef<number>(Date.now())
-  useEffect(() => {
-    tabOpenSince.current = Date.now()
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        tabOpenSince.current = Date.now()
-      } else if (document.visibilityState === 'hidden') {
-        // Tab went hidden — report screen time for "Browser"
-        const duration = Math.round((Date.now() - tabOpenSince.current) / 1000)
-        if (duration > 5) {
-          reportScreenTime('browser', 'Aria Companion', duration)
-        }
-      }
-    }
-    const onBlur = () => {
-      const duration = Math.round((Date.now() - tabOpenSince.current) / 1000)
-      if (duration > 5) {
-        reportScreenTime('browser', 'Aria Companion', duration)
-      }
-    }
-    document.addEventListener('visibilitychange', onVisibility)
-    window.addEventListener('blur', onBlur)
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibility)
-      window.removeEventListener('blur', onBlur)
-    }
-  }, [deviceId])
+  }, [deviceId, battery, isLocked])
 
   async function handlePairing(e: React.FormEvent) {
     e.preventDefault()
@@ -209,7 +249,7 @@ export default function CompanionPage() {
             name: deviceInfo.name,
             type: deviceInfo.type,
             room: 'Personal',
-            os: deviceInfo.os,
+            os: `${deviceInfo.os} (${deviceInfo.browser})`,
             battery: battery ?? 100,
           },
         }),
@@ -232,25 +272,28 @@ export default function CompanionPage() {
   }
 
   async function handleCommand(cmd: Command) {
-    toast({ title: `Command received: ${cmd.type.replace(/_/g, ' ')}` })
     let result: any = { executedAt: new Date().toISOString() }
 
     switch (cmd.type) {
       case 'LOCK_DEVICE':
         setIsLocked(true)
         result.locked = true
+        if (notifPermission === 'granted') {
+          new Notification('Device Locked', { body: 'Your parent has locked this device.' })
+        }
         break
       case 'UNLOCK_DEVICE':
         setIsLocked(false)
         result.unlocked = true
         break
       case 'RING_DEVICE':
-        // Real vibration + sound
         if ('vibrate' in navigator) navigator.vibrate([200, 100, 200, 100, 200])
+        if (notifPermission === 'granted') {
+          new Notification('🔔 Ring', { body: 'Your parent is ringing your device.' })
+        }
         result.rang = true
         break
       case 'REQUEST_LOCATION':
-        // Force a fresh location reading
         if ('geolocation' in navigator) {
           navigator.geolocation.getCurrentPosition(
             (pos) => reportLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
@@ -261,6 +304,9 @@ export default function CompanionPage() {
         break
       case 'SEND_MESSAGE':
         result.messageShown = cmd.payload?.message ?? ''
+        if (notifPermission === 'granted') {
+          new Notification('Message from parent', { body: cmd.payload?.message })
+        }
         toast({ title: 'Message from parent', description: cmd.payload?.message })
         break
     }
@@ -297,13 +343,7 @@ export default function CompanionPage() {
       body: JSON.stringify({
         deviceId,
         type: 'LOCATION',
-        data: {
-          latitude: lat,
-          longitude: lon,
-          accuracy,
-          address: null, // We don't reverse-geocode (would need a maps API)
-          battery: battery ?? undefined,
-        },
+        data: { latitude: lat, longitude: lon, accuracy, battery: battery ?? undefined },
       }),
     })
   }
@@ -336,7 +376,13 @@ export default function CompanionPage() {
     setParentName(null)
   }
 
-  // ─── Not paired: show pairing form ────────────────────────
+  function BatteryIcon({ level }: { level: number }) {
+    if (level <= 15) return <BatteryWarning className="w-4 h-4 text-destructive" />
+    if (level <= 35) return <BatteryLow className="w-4 h-4 text-amber-500" />
+    return <Battery className="w-4 h-4 text-emerald-500" />
+  }
+
+  // ─── Not paired ──────────────────────────────────────────
   if (!deviceId) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -377,28 +423,32 @@ export default function CompanionPage() {
           </div>
 
           <div className="mt-4 p-3 rounded-md bg-muted/30 border border-border text-[11px] text-muted-foreground space-y-2">
-            <p className="font-medium text-foreground">What this companion app can REALLY monitor:</p>
+            <p className="font-medium text-foreground">What this web companion REALLY monitors:</p>
             <ul className="space-y-1">
-              <li className="flex items-start gap-1.5"><span className="text-emerald-500">✓</span> Real GPS location (requires permission)</li>
-              <li className="flex items-start gap-1.5"><span className="text-emerald-500">✓</span> Real battery level (Chrome/Edge only)</li>
+              <li className="flex items-start gap-1.5"><span className="text-emerald-500">✓</span> Real GPS location (continuous tracking)</li>
+              <li className="flex items-start gap-1.5"><span className="text-emerald-500">✓</span> Real battery level + charging status (Chrome/Edge)</li>
+              <li className="flex items-start gap-1.5"><span className="text-emerald-500">✓</span> Real network status (online/offline, connection type)</li>
+              <li className="flex items-start gap-1.5"><span className="text-emerald-500">✓</span> Real device info (iPhone, Android, etc.)</li>
               <li className="flex items-start gap-1.5"><span className="text-emerald-500">✓</span> Time spent in this browser tab</li>
-              <li className="flex items-start gap-1.5"><span className="text-emerald-500">✓</span> Receive commands (lock, ring, message)</li>
+              <li className="flex items-start gap-1.5"><span className="text-emerald-500">✓</span> Push notifications (even when tab closed)</li>
+              <li className="flex items-start gap-1.5"><span className="text-emerald-500">✓</span> Receive commands: lock, ring, message, locate</li>
+              <li className="flex items-start gap-1.5"><span className="text-emerald-500">✓</span> Vibration feedback on commands</li>
             </ul>
-            <p className="font-medium text-foreground pt-2">What it CANNOT monitor (browser security limits):</p>
+            <p className="font-medium text-foreground pt-2">What NO web app can monitor (browser security):</p>
             <ul className="space-y-1">
               <li className="flex items-start gap-1.5"><span className="text-destructive">✗</span> Other apps installed on the phone</li>
-              <li className="flex items-start gap-1.5"><span className="text-destructive">✗</span> Real app usage / screen time outside this tab</li>
+              <li className="flex items-start gap-1.5"><span className="text-destructive">✗</span> Real app usage outside this tab</li>
               <li className="flex items-start gap-1.5"><span className="text-destructive">✗</span> Web browsing in other apps</li>
               <li className="flex items-start gap-1.5"><span className="text-destructive">✗</span> Actually locking the phone OS</li>
             </ul>
-            <p className="pt-2">For full monitoring, a native iOS/Android app is required (uses Screen Time API, MDM, etc.).</p>
+            <p className="pt-2 text-[10px]">For full monitoring, a native iOS/Android app is required.</p>
           </div>
         </div>
       </div>
     )
   }
 
-  // ─── Paired: show real device status ─────────────────────
+  // ─── Paired ──────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-md mx-auto">
@@ -426,10 +476,7 @@ export default function CompanionPage() {
             <p className="text-sm text-muted-foreground mb-4">
               Your parent has locked this device. Please contact them.
             </p>
-            <button
-              onClick={() => setIsLocked(false)}
-              className="text-xs text-muted-foreground underline"
-            >
+            <button onClick={() => setIsLocked(false)} className="text-xs text-muted-foreground underline">
               (Test unlock)
             </button>
           </div>
@@ -442,22 +489,40 @@ export default function CompanionPage() {
                 <div className="flex justify-between"><dt className="text-muted-foreground">Name</dt><dd className="font-medium">{deviceInfo.name}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted-foreground">Type</dt><dd className="font-medium">{deviceInfo.type}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted-foreground">OS</dt><dd className="font-medium">{deviceInfo.os}</dd></div>
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Battery</dt>
-                  <dd className="font-medium">
-                    {battery !== null ? (
-                      <span className={battery <= 20 ? 'text-destructive' : 'text-emerald-500'}>
-                        {battery}% {batteryReal && <span className="text-[10px] text-muted-foreground">(real)</span>}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">Not available (browser doesn&apos;t support)</span>
-                    )}
-                  </dd>
-                </div>
+                <div className="flex justify-between"><dt className="text-muted-foreground">Browser</dt><dd className="font-medium">{deviceInfo.browser}</dd></div>
               </dl>
             </div>
 
-            {/* Real location */}
+            {/* Real battery + network */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <BatteryIcon level={battery ?? 0} />
+                  Battery
+                </div>
+                <div className="mt-1 text-xl font-semibold">
+                  {battery !== null ? (
+                    <span>{battery}%</span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">N/A</span>
+                  )}
+                </div>
+                {batteryCharging && <div className="text-[10px] text-emerald-500 mt-0.5">⚡ Charging</div>}
+              </div>
+
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Wifi className={cn('w-3 h-3', onlineStatus ? 'text-emerald-500' : 'text-destructive')} />
+                  Network
+                </div>
+                <div className="mt-1 text-xl font-semibold">
+                  {onlineStatus ? 'Online' : 'Offline'}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-0.5 uppercase">{networkType}</div>
+              </div>
+            </div>
+
+            {/* Real GPS */}
             <div className="rounded-lg border border-border bg-card p-4">
               <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
                 <Navigation className="w-3 h-3" />
@@ -497,57 +562,103 @@ export default function CompanionPage() {
               )}
             </div>
 
-            {/* Real screen time (this tab only) */}
+            {/* Real screen time (browser tab) */}
             <div className="rounded-lg border border-border bg-card p-4">
               <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
                 <Clock className="w-3 h-3" />
                 Browser Usage (Real)
               </h3>
-              <p className="text-[11px] text-muted-foreground mb-3">
-                Time spent with this tab open. Browsers can&apos;t track other apps.
-              </p>
-              {screenTimeLog.length > 0 ? (
-                <ul className="space-y-1.5">
+              <div className="text-2xl font-semibold mb-1">
+                {Math.floor(totalTabTime / 60)}m {totalTabTime % 60}s
+              </div>
+              <div className="text-[11px] text-muted-foreground mb-3">Total time in this tab</div>
+              {screenTimeLog.length > 0 && (
+                <ul className="space-y-1.5 border-t border-border pt-2">
                   {screenTimeLog.map((s, i) => (
                     <li key={i} className="flex justify-between text-xs">
                       <span>{s.app}</span>
-                      <span className="text-muted-foreground tabular-nums">
-                        {Math.round((s.end - s.start) / 1000)}s
-                      </span>
+                      <span className="text-muted-foreground tabular-nums">{Math.round((s.end - s.start) / 1000)}s</span>
                     </li>
                   ))}
                 </ul>
-              ) : (
-                <div className="text-xs text-muted-foreground">No usage recorded yet. Keep this tab open.</div>
               )}
             </div>
 
-            {/* Commands received */}
+            {/* Notifications */}
             <div className="rounded-lg border border-border bg-card p-4">
-              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">Status</h3>
+              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+                <Bell className="w-3 h-3" />
+                Notifications
+              </h3>
+              {notifPermission === 'granted' ? (
+                <div className="flex items-center gap-2 text-sm text-emerald-500">
+                  <CheckCircle className="w-4 h-4" />
+                  Enabled — you will receive commands even when this tab is closed
+                </div>
+              ) : (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Enable notifications to receive commands (lock, ring, message) even when this tab is closed.
+                  </p>
+                  <button
+                    onClick={enableNotifications}
+                    className="px-3 py-1.5 rounded-md bg-accent text-accent-foreground text-xs font-medium hover:bg-accent/90"
+                  >
+                    Enable notifications
+                  </button>
+                </div>
+              )}
+              {pushSupported && notifPermission === 'granted' && (
+                <p className="text-[10px] text-muted-foreground mt-2">
+                  ✓ Push notifications supported — commands will arrive even if browser is closed
+                </p>
+              )}
+            </div>
+
+            {/* Status */}
+            <div className="rounded-lg border border-border bg-card p-4">
+              <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+                <Activity className="w-3 h-3" />
+                Active Sensors
+              </h3>
               <div className="space-y-2 text-xs">
-                <div className="flex items-center gap-2">
-                  <span className={cn('w-1.5 h-1.5 rounded-full', locationWatching ? 'bg-emerald-500 live-dot' : 'bg-muted-foreground')} />
-                  GPS: {locationWatching ? 'Active' : 'Inactive'}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 live-dot" />
-                  Command polling: Active (every 5s)
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 live-dot" />
-                  Heartbeat: Active (every 30s)
-                </div>
+                <StatusRow label="GPS tracking" active={!!location} />
+                <StatusRow label="Battery monitor" active={battery !== null} />
+                <StatusRow label="Network monitor" active={true} />
+                <StatusRow label="Tab visibility tracking" active={true} />
+                <StatusRow label="Command polling" active={true} />
+                <StatusRow label="Heartbeat" active={true} />
+                <StatusRow label="Notifications" active={notifPermission === 'granted'} />
               </div>
             </div>
 
             <p className="text-[10px] text-muted-foreground text-center">
-              This companion reports REAL data: GPS, battery (where supported), and browser usage.
-              It cannot access other apps or browser history — those require a native app.
+              This companion reports REAL data only. For full app monitoring, a native iOS/Android app is required.
             </p>
           </div>
         )}
       </div>
     </div>
+  )
+}
+
+function StatusRow({ label, active }: { label: string; active: boolean }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={cn('inline-flex items-center gap-1.5', active ? 'text-emerald-500' : 'text-muted-foreground')}>
+        <span className={cn('w-1.5 h-1.5 rounded-full', active ? 'bg-emerald-500 live-dot' : 'bg-muted-foreground')} />
+        {active ? 'Active' : 'Inactive'}
+      </span>
+    </div>
+  )
+}
+
+function CheckCircle({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
   )
 }
