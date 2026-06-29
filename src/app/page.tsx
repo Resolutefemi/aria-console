@@ -10,9 +10,13 @@ import { SecurityAlerts } from '@/components/dashboard/security-alerts'
 import { DesignPrinciples } from '@/components/dashboard/design-principles'
 import { PermissionsPosture } from '@/components/dashboard/permissions-posture'
 import { ShortcutsDialog } from '@/components/dashboard/shortcuts-dialog'
+import { DeviceActivity } from '@/components/dashboard/device-activity'
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts'
+import { useApi } from '@/hooks/use-api'
 import { useAuth } from '@/components/auth/auth-provider'
 import { useState } from 'react'
+import Link from 'next/link'
+import { Plus } from 'lucide-react'
 
 function greeting() {
   const h = new Date().getHours()
@@ -24,6 +28,13 @@ function greeting() {
 export default function Home() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const { user, loading } = useAuth()
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null)
+
+  // Fetch first device for activity panel
+  const { data: devicesData } = useApi<{ devices: any[] }>('/api/devices?limit=1')
+  const firstDevice = devicesData?.devices?.[0]
+  const activeDeviceId = selectedDeviceId ?? firstDevice?.id ?? null
+  const activeDevice = firstDevice
 
   const userName = user
     ? (user.user_metadata?.name as string) ||
@@ -63,10 +74,21 @@ export default function Home() {
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 live-dot" aria-hidden="true" />
                 Last sync · 14:32:18
               </span>
+              <Link
+                href="/pair"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-accent text-accent-foreground text-[11px] font-medium hover:bg-accent/90 transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+                Pair Device
+              </Link>
             </div>
           </div>
 
           <StatsCards />
+
+          {activeDevice && (
+            <DeviceActivity device={activeDevice} />
+          )}
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
             <DeviceMonitoring />
