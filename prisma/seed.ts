@@ -90,6 +90,11 @@ async function main() {
     { transcript: 'Call mum on speakerphone', intent: 'call.initiate', confidence: 0.95, status: 'SUCCESS', deviceId: devices[0].id, minutesAgo: 33 },
     { transcript: 'Remind me to take out the trash at 6', intent: 'reminder.create', confidence: 0.41, status: 'FAILED', deviceId: devices[4].id, minutesAgo: 42 },
     { transcript: 'Decrease the thermostat by two degrees', intent: 'climate.adjust', confidence: 0.94, status: 'SUCCESS', deviceId: devices[1].id, minutesAgo: 50 },
+    { transcript: 'Lock the front door', intent: 'door.lock', confidence: 0.96, status: 'SUCCESS', deviceId: devices[1].id, minutesAgo: 65 },
+    { transcript: 'What time is it in London', intent: 'time.query', confidence: 0.99, status: 'SUCCESS', deviceId: devices[0].id, minutesAgo: 73 },
+    { transcript: 'Send a message to mum saying I will call later', intent: 'message.send', confidence: 0.88, status: 'SUCCESS', deviceId: devices[0].id, minutesAgo: 88 },
+    { transcript: 'Add milk to my shopping list', intent: 'list.add', confidence: 0.93, status: 'SUCCESS', deviceId: devices[1].id, minutesAgo: 95 },
+    { transcript: 'Skip this song', intent: 'media.skip', confidence: 0.91, status: 'SUCCESS', deviceId: devices[3].id, minutesAgo: 110 },
   ]
 
   for (const c of commands) {
