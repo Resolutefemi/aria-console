@@ -149,3 +149,22 @@ enum UserRole {
   MEMBER
   VIEWER
 }
+
+/// An immutable record of operator actions for compliance and debugging.
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String   /// e.g. "alert.acknowledge", "device.refresh"
+  resource  String   /// e.g. "security_alert", "device"
+  resourceId String? @map("resource_id")
+  metadata  String?  /// JSON-encoded context
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
