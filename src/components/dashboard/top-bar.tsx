@@ -1,8 +1,38 @@
 'use client'
 
-import { Search, Command, Menu } from 'lucide-react'
+import { useSyncExternalStore } from 'react'
+import {
+  Search,
+  Bell,
+  Command,
+  Sun,
+  Moon,
+  Menu,
+} from 'lucide-react'
+
+// Stable external store for the live clock — re-renders once per second.
+function subscribe(callback: () => void) {
+  const id = setInterval(callback, 1000)
+  return () => clearInterval(id)
+}
+function getClientSnapshot() {
+  return Math.floor(Date.now() / 1000)
+}
+function getServerSnapshot() {
+  return 0
+}
 
 export function TopBar() {
+  const seconds = useSyncExternalStore(subscribe, getClientSnapshot, getServerSnapshot)
+  const now = seconds ? new Date(seconds * 1000) : null
+
+  const timeStr = now
+    ? now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+    : '--:--:--'
+  const dateStr = now
+    ? now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    : ''
+
   return (
     <header
       className="sticky top-0 z-30 h-16 border-b border-border bg-background/80 backdrop-blur-md flex items-center gap-4 px-4 lg:px-6"
@@ -35,6 +65,22 @@ export function TopBar() {
             <Command className="w-3 h-3" />K
           </kbd>
         </label>
+      </div>
+
+      <div className="flex items-center gap-1 sm:gap-2 ml-auto">
+        <div className="hidden sm:flex flex-col items-end leading-tight pr-2 border-r border-border mr-1">
+          <span className="font-mono text-sm tabular-nums" aria-live="off">{timeStr}</span>
+          <span className="text-[10px] text-muted-foreground">{dateStr}</span>
+        </div>
+
+        <button
+          type="button"
+          className="p-2 rounded-md hover:bg-muted transition-colors hidden sm:inline-flex"
+          aria-label="Toggle theme"
+        >
+          <Moon className="w-5 h-5 hidden dark:block" />
+          <Sun className="w-5 h-5 dark:hidden" />
+        </button>
       </div>
     </header>
   )
