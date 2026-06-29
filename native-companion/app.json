@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "Aria Companion",
+    "slug": "aria-companion",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0a0a"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ariaconsole.companion",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Aria Companion needs location to report your device location to your parent's dashboard.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Aria Companion needs background location to report your device location even when the app is closed.",
+        "NSLocationAlwaysUsageDescription": "Aria Companion needs background location to report your device location to your parent's dashboard."
+      },
+      "backgroundModes": ["location", "remote-notifications"]
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0a0a0a"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "BATTERY_STATS"
+      ],
+      "package": "com.ariaconsole.companion"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Aria Companion to use your location."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#f0a04b"
+        }
+      ]
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": ""
+      }
+    },
+    "scheme": "aria-companion"
+  }
+}
