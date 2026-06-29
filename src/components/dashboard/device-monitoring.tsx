@@ -83,7 +83,7 @@ const STATUS_FILTERS: { id: 'ALL' | DeviceStatus; label: string }[] = [
 ]
 
 export function DeviceMonitoring() {
-  const { data, loading, error, refetch } = useApi<{ devices: Device[] }>('/api/devices', { refetchInterval: 15000 })
+  const { data, loading, error, refetch } = useApi<{ devices: Device[] }>('/api/devices?paired=true', { refetchInterval: 15000 })
   const [statusFilter, setStatusFilter] = useState<'ALL' | DeviceStatus>('ALL')
   const [search, setSearch] = useState('')
   const [roomFilter, setRoomFilter] = useState<string>('ALL')
@@ -195,10 +195,10 @@ export function DeviceMonitoring() {
               key={d.id}
               role="listitem"
               className="bg-card p-4 hover:bg-muted/30 transition-colors group cursor-pointer"
-              onClick={() => { setSelectedDeviceId(d.deviceId); setDrawerOpen(true) }}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDeviceId(d.deviceId); setDrawerOpen(true) } }}
+              onClick={() => router.push(`/devices/${d.id}`)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(`/devices/${d.id}`) } }}
               tabIndex={0}
-              aria-label={`Open details for ${d.name}`}
+              aria-label={`Open controls for ${d.name}`}
             >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-3 min-w-0">

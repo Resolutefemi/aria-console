@@ -94,6 +94,13 @@ export function DeviceActivity({ device }: { device: Device }) {
         </div>
         <div className="flex items-center gap-1">
           <button
+            onClick={() => router.push(`/devices/${device.id}`)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-accent text-accent-foreground text-xs font-medium hover:bg-accent/90 transition-colors"
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Full control</span>
+          </button>
+          <button
             onClick={() => router.push('/pair')}
             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border hover:bg-muted transition-colors text-xs"
           >
