@@ -57,6 +57,36 @@ const stats: Stat[] = [
   },
 ]
 
+function Sparkline({ data, accent }: { data: number[]; accent: string }) {
+  const w = 80
+  const h = 24
+  const min = Math.min(...data)
+  const max = Math.max(...data)
+  const range = max - min || 1
+  const step = w / (data.length - 1)
+  const points = data
+    .map((v, i) => `${i * step},${h - ((v - min) / range) * h}`)
+    .join(' ')
+  return (
+    <svg
+      width={w}
+      height={h}
+      viewBox={`0 0 ${w} ${h}`}
+      className="opacity-80"
+      aria-hidden="true"
+    >
+      <polyline
+        points={points}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 export function StatsCards() {
   return (
     <section aria-labelledby="stats-heading" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -77,9 +107,14 @@ export function StatsCards() {
                 <Icon className="w-4 h-4" />
               </div>
             </div>
-            <div className="mt-3 flex items-center gap-1 text-[11px] text-muted-foreground">
-              {s.delta.trend === 'up' ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-              <span>{s.delta.value}</span>
+            <div className="mt-3 flex items-end justify-between">
+              <div className={`flex items-center gap-1 text-[11px] ${s.delta.positive ? 'text-emerald-500' : 'text-muted-foreground'}`}>
+                {s.delta.trend === 'up' ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                <span>{s.delta.value}</span>
+              </div>
+              <div className={s.accent}>
+                <Sparkline data={s.spark} accent={s.accent} />
+              </div>
             </div>
           </article>
         )
