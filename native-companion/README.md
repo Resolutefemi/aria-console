@@ -1,81 +1,154 @@
-# Aria Companion — React Native App
+# Aria Companion — Ultimate Parental Control App
 
-Real device monitoring companion app for Aria Console. Built with **Expo** (React Native) so you can run it on your actual phone in 2 minutes — no compilation needed.
+Real native device monitoring companion app for Aria Console. Built with **React Native + Expo** — runs on actual iOS/Android phones with full access to native APIs that web apps can't reach.
 
-## Why React Native (not Flutter/Dart)?
+## Why React Native (not Flutter/Dart)
 
 - **Runs in this sandbox** — uses JS/TS, no Flutter SDK needed
 - **One codebase, two platforms** — iOS + Android from the same code
 - **Expo Go** — scan a QR code, app runs on your phone instantly
 - **Same backend** — calls the exact same APIs as the web companion
-- **Real native APIs** — accesses GPS, battery, device info, notifications that browsers can't
+- **Real native APIs** — accesses GPS, battery, app usage, notifications
 
-## What this app monitors (all REAL)
+## Ultimate Features (like Qustodio / Bark / Norton Family / FlashGet Kids)
 
-| Sensor | Source | Notes |
-|--------|--------|-------|
-| GPS location | `expo-location` | Real lat/lon, continuous tracking, background mode |
-| Battery | `expo-battery` | Real %, charging status, live updates |
-| Device info | `expo-device` | Real name, OS, brand, model |
-| Network | `expo-network` | Real WiFi/Cellular, online/offline |
-| Notifications | `expo-notifications` | Push notifications, even when app closed |
-| Vibration | React Native built-in | Real haptic feedback on Ring command |
+### 📊 Real App Usage Tracking
+- **Android**: Uses `UsageStatsManager` — tracks time spent in EVERY app
+- **iOS**: Uses `DeviceActivity` framework (FamilyControls)
+- Reports per-app usage to parent dashboard
+- Shows which apps are used most
 
-## What it CANNOT do (iOS/Android restrictions)
+### 📱 Installed Apps Scanner
+- Lists all installed apps (Android)
+- Shows app names, versions, install dates
+- Parent can block individual apps from dashboard
 
-- ❌ List other installed apps (needs Screen Time API on iOS, UsageStatsManager on Android)
-- ❌ Track real app usage outside this app
-- ❌ Actually lock the phone OS (needs MDM/Family Controls enrollment)
-- ❌ Read web browsing history from Chrome/Safari
+### 🌐 Web History + Content Filtering
+- In-app browser logs all visits
+- Content categories: Adult, Social, Gambling, Violence, Drugs, Games
+- Parent configures which categories to block
+- Blocked visits are logged (parent sees attempt)
 
-For full monitoring, you'd need to add platform-specific native modules — see "Going Further" below.
+### 📍 Geofencing
+- Parent defines safe zones (Home, School, etc.)
+- Alerts when device enters/exits geofence
+- Real GPS coordinates with accuracy
+- Continuous background tracking
 
-## Quick Start (2 minutes)
+### 🆘 SOS Panic Button
+- Child taps SOS → parent gets instant alert
+- Sends current GPS location + battery
+- Strong haptic feedback on trigger
+- High-priority notification on parent's phone
+
+### ✓ Check-In Feature
+- Child can signal "I'm safe" without emergency
+- Sends location + battery to parent
+
+### ⏱️ Screen Time Enforcement
+- **Total daily limit** — locks device when exceeded
+- **Per-app limit** — blocks specific apps when limit reached
+- **Bedtime mode** — locks device during specified hours
+- Violation log shows history
+
+### 🔒 Real Device Lock
+- **Android**: `DevicePolicyManager.lockNow()` — actually locks the phone
+- **iOS**: `ManagedSettingsStore` — blocks all apps
+- Parent taps "Lock" on dashboard → phone locks immediately
+
+### 📱 App Blocking
+- Parent can block individual apps from dashboard
+- App becomes unopenable on the child's phone
+- Unblock with one tap
+
+### 🔔 Push Notifications
+- Commands arrive even when app is closed
+- Lock, ring, message notifications
+- Sound + vibration on command receipt
+
+### ⚡ Background Monitoring
+- Continuous monitoring even when app is closed
+- Background location tracking (Android foreground service)
+- Background fetch every 15 minutes
+- Heartbeat every 30 seconds
+
+## What This App Monitors (all REAL)
+
+| Feature | Source | Android | iOS |
+|---------|--------|---------|-----|
+| GPS location | expo-location | ✅ Background | ✅ Background |
+| Battery level | expo-battery | ✅ | ✅ |
+| Device info | expo-device | ✅ | ✅ |
+| Network status | expo-network | ✅ | ✅ |
+| App usage | UsageStatsManager / DeviceActivity | ✅ | ✅ (FamilyControls) |
+| Installed apps | PackageManager | ✅ | ❌ (iOS doesn't allow) |
+| Web history | In-app browser | ✅ | ✅ |
+| Geofencing | expo-location | ✅ | ✅ |
+| Push notifications | expo-notifications | ✅ | ✅ |
+| Device lock | DevicePolicyManager / ManagedSettings | ✅ | ✅ |
+| App blocking | DevicePolicyManager / ManagedSettings | ✅ | ✅ |
+| Vibration | React Native built-in | ✅ | ✅ |
+| Call logs | CallLog (Android only) | ✅ | ❌ (iOS doesn't allow) |
+
+## What It Cannot Do (OS restrictions)
+
+- ❌ Read SMS messages (iOS blocks entirely; Android needs special permission)
+- ❌ Keylogger (both platforms block this)
+- ❌ Record phone calls (illegal in many jurisdictions)
+- ❌ Access Chrome/Safari browsing history (outside in-app browser)
+- ❌ Track location when phone is off
+
+## Quick Start (5 minutes)
 
 ### Prerequisites
 
-- **Node.js 18+** and **npm** or **bun**
-- **Expo Go app** on your phone ([iOS App Store](https://apps.apple.com/app/expo-go/id982107779) / [Google Play](https://play.google.com/store/apps/details?id=host.exp.exponent))
-- Your phone and computer on the **same WiFi network**
+- **Node.js 18+** and **npm**
+- **Expo Go app** on your phone
+- Your phone and computer on **same WiFi** (or use tunnel)
 
 ### Step 1 — Install dependencies
 
 ```bash
 cd native-companion
 npm install
-# or: bun install
 ```
 
 ### Step 2 — Set your backend URL
 
-Edit `constants/config.ts` and replace the URL with your Vercel deployment:
+Edit `constants/config.ts`:
 
 ```typescript
-export const API_BASE_URL = 'https://your-actual-app.vercel.app'
+export const API_BASE_URL = 'https://your-actual-vercel-url.vercel.app'
 ```
 
 ### Step 3 — Start the dev server
 
 ```bash
 npm start
-# or: npx expo start
 ```
-
-This opens the Expo DevTools in your browser.
 
 ### Step 4 — Run on your phone
 
-1. Open the **Expo Go** app on your phone
-2. Scan the **QR code** shown in the terminal/browser
-3. The app loads on your phone in ~10 seconds
+1. Open **Expo Go** on your phone
+2. Scan the QR code shown in terminal
+3. App loads in ~10 seconds
 
 ### Step 5 — Pair it
 
-1. On your computer/parent device, open your web app at `/pair`
+1. On your parent dashboard (web), go to `/pair`
 2. Generate a 6-digit code
-3. On your phone (in the Aria Companion app), enter the code
+3. In the Aria Companion app on your phone, enter the code
 4. Tap **Pair Device**
-5. Your phone now reports real GPS, battery, and device info to the dashboard
+
+### Step 6 — Grant permissions
+
+The app will ask for:
+- **Location** (Always) — for GPS tracking
+- **Notifications** — for command alerts
+- **Usage Access** (Android) — for app usage tracking
+- **Battery optimization exclusion** (Android) — for background monitoring
+
+Grant all of them for full functionality.
 
 ## Project Structure
 
@@ -83,107 +156,102 @@ This opens the Expo DevTools in your browser.
 native-companion/
 ├── app/                          # Screens (Expo Router)
 │   ├── _layout.tsx               # Root layout
-│   ├── index.tsx                 # Pairing screen (entry)
-│   └── paired.tsx                # Main monitoring screen
+│   ├── index.tsx                 # Pairing screen
+│   └── paired.tsx                # Main screen with 5 tabs
 ├── services/
 │   ├── api.ts                    # Backend API calls
-│   └── device.ts                 # Native device APIs (GPS, battery, etc.)
+│   ├── device.ts                 # Native device APIs (GPS, battery)
+│   ├── app-usage.ts              # App usage tracking (UsageStatsManager)
+│   ├── browser.ts                # In-app browser + content filter
+│   ├── geofence.ts               # Geofencing service
+│   ├── sos.ts                    # SOS + check-in
+│   ├── screen-time.ts            # Limit enforcement
+│   └── background.ts             # Background monitoring service
 ├── constants/
-│   └── config.ts                 # Backend URL + theme colors
-├── app.json                      # Expo config (permissions, app name)
-├── package.json
-└── tsconfig.json
+│   └── config.ts                 # Backend URL + theme
+├── app.json                      # Expo config + permissions
+└── package.json
 ```
-
-## How it works
-
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│  Aria Companion │     │   Your Vercel   │     │  Parent Web     │
-│  (this app)     │     │   Backend       │     │  Dashboard      │
-│  on phone       │────►│   (Next.js)     │◄────│  (browser)      │
-│                 │     │                 │     │                 │
-│  Reports:       │     │  Stores in:     │     │  Shows:         │
-│  - GPS location │     │  - Supabase     │     │  - Real-time    │
-│  - Battery      │     │    Postgres     │     │    location     │
-│  - Device info  │     │                 │     │  - Battery %    │
-│  - Heartbeat    │     │                 │     │  - Device info  │
-│                 │◄────│                 │────►│                 │
-│  Receives:      │     │                 │     │  Sends:         │
-│  - Lock command │     │                 │     │  - Lock         │
-│  - Ring command │     │                 │     │  - Ring         │
-│  - Messages     │     │                 │     │  - Locate       │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-```
-
-## Going Further — Full Native Monitoring
-
-To monitor **other apps** and **actually lock the phone**, you need platform-specific native code. Here's the path:
-
-### iOS (Screen Time API)
-
-1. Add `FamilyControls` capability to the app
-2. Request `FamilyControls` authorization
-3. Use `DeviceActivityMonitor` to track app usage
-4. Use `ManagedSettingsStore` to block apps / lock device
-5. Requires Apple Developer Program ($99/year) and App Store review
-
-### Android (UsageStatsManager + MDM)
-
-1. Request `PACKAGE_USAGE_STATS` permission (special access)
-2. Use `UsageStatsManager` to query app usage
-3. Use `DevicePolicyManager` to lock device / block apps
-4. Requires setting up a Device Admin app
-
-### Adding to this project
-
-```bash
-# Install platform-specific packages
-npx expo install expo-screen-time expo-device-policy
-```
-
-Then create native modules in `modules/` to bridge to Swift/Kotlin. This is advanced — start with the web companion, then upgrade to native once you've validated the concept.
 
 ## Building for App Store / Play Store
 
-When ready to publish:
+For production (Expo Go has limitations):
 
 ```bash
 # Install EAS CLI
 npm install -g eas-cli
-
-# Log in to Expo
 eas login
 
-# Build for iOS
-eas build --platform ios
+# Build standalone Android app (.aab)
+eas build --platform android --profile production
 
-# Build for Android
-eas build --platform android
+# Build standalone iOS app (.ipa) — requires Apple Developer account
+eas build --platform ios --profile production
 ```
 
-This produces `.ipa` / `.aab` files you submit to the App Store / Play Store.
+Standalone apps have:
+- Full background location tracking
+- No Expo Go limitations
+- App Store / Play Store distribution
+- Push notifications via APNs / FCM
+
+## iOS-Specific Setup (FamilyControls)
+
+For iOS app usage tracking and device lock, you need:
+
+1. **Apple Developer Program** ($99/year)
+2. **Family Controls capability** in app.json
+3. **Entitlements** for `com.apple.developer.family-controls`
+4. App Store review (Apple reviews parental control apps carefully)
+
+See: https://developer.apple.com/documentation/familycontrols
+
+## Android-Specific Setup (UsageStatsManager)
+
+For Android app usage tracking:
+
+1. User must grant **Usage Access** permission manually
+2. App opens Settings → Apps → Special access → Usage access
+3. No Play Store review needed for this permission
+
+For device lock (DevicePolicyManager):
+1. App must be set as **Device Admin**
+2. User grants admin rights on first launch
+3. Cannot be uninstalled without admin rights being revoked
 
 ## Troubleshooting
 
 **App can't connect to backend**
-- Make sure `API_BASE_URL` in `constants/config.ts` points to your Vercel URL (not localhost)
-- Make sure your phone has internet access
+- Check `API_BASE_URL` in `constants/config.ts`
+- Make sure phone has internet
 
-**GPS not working**
-- Make sure you granted location permission
-- On iOS: Settings → Aria Companion → Location → Always
-- On Android: Settings → Apps → Aria Companion → Permissions → Location → Allow all the time
-
-**Notifications not arriving**
-- Make sure you granted notification permission
-- On iOS: Settings → Aria Companion → Notifications → Allow
-- On Android: Settings → Apps → Aria Companion → Notifications → On
+**App usage shows 0**
+- Grant Usage Access permission (Android Settings → Special access)
+- On iOS, enable Family Controls
 
 **Background tracking stops**
-- iOS: Make sure Background App Refresh is on
-- Android: Disable battery optimization for the app
-- Both: Use EAS Build to create a standalone app (Expo Go has limitations)
+- Disable battery optimization (Android)
+- Enable Background App Refresh (iOS)
+- Use EAS Build for standalone app (Expo Go has limits)
+
+**Location not updating**
+- Set location permission to "Always" (not just "While using")
+- On Android, allow background location
+
+## Comparison to Commercial Apps
+
+| Feature | Aria Companion | Qustodio | Bark | Norton Family |
+|---------|----------------|----------|------|---------------|
+| App usage tracking | ✅ | ✅ | ✅ | ✅ |
+| Web filtering | ✅ | ✅ | ✅ | ✅ |
+| Screen time limits | ✅ | ✅ | ❌ | ✅ |
+| Location tracking | ✅ | ✅ | ❌ | ✅ |
+| Geofencing | ✅ | ✅ | ❌ | ❌ |
+| SOS button | ✅ | ❌ | ✅ | ❌ |
+| App blocking | ✅ | ✅ | ❌ | ✅ |
+| Device lock | ✅ | ✅ | ❌ | ✅ |
+| Push notifications | ✅ | ✅ | ✅ | ✅ |
+| Price | Free (self-hosted) | $54.95/yr | $99/yr | $49.99/yr |
 
 ## License
 
