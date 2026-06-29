@@ -44,7 +44,7 @@ async function main() {
     { deviceId: 'D-005', name: 'Galaxy Watch6', type: 'WATCH', room: 'Personal', status: 'ONLINE', battery: 73, signal: -67, ipAddress: '10.0.1.88', firmware: '2.1.0' },
     { deviceId: 'D-006', name: 'AirPods Pro', type: 'HEADPHONES', room: 'Personal', status: 'ONLINE', battery: 28, signal: -49, ipAddress: '10.0.1.91', firmware: '7B19' },
     { deviceId: 'D-007', name: 'Office iPad', type: 'TABLET', room: 'Office', status: 'OFFLINE', battery: 12, signal: 0, ipAddress: '10.0.1.104', firmware: '17.4.1' },
-    { deviceId: 'D-026', name: 'Water Leak Sensor', type: 'DISPLAY', room: 'Bathroom', status: 'IDLE', battery: 78, signal: -80, ipAddress: '10.0.1.220', firmware: '1.0.4' },
+    { deviceId: 'D-027', name: 'Smart Plug — TV', type: 'DISPLAY', room: 'Living Room', status: 'ONLINE', battery: 100, signal: -42, ipAddress: '10.0.1.230', firmware: '2.3.1' },
   ]
 
   const devices = []
