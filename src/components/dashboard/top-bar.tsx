@@ -1,6 +1,5 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
 import { useState, useSyncExternalStore } from 'react'
 import {
   Search,

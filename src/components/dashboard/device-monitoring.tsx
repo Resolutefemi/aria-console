@@ -6,7 +6,7 @@ import {
   Watch,
   Tablet,
   Headphones,
-  Display,
+  Monitor,
   Wifi,
   Battery,
   BatteryLow,
@@ -41,9 +41,9 @@ const deviceIcon: Record<Device['type'], LucideIcon> = {
   WATCH: Watch,
   TABLET: Tablet,
   HEADPHONES: Headphones,
-  DISPLAY: Display,
-  THERMOSTAT: Smartphone, // placeholder
-  CAMERA: Smartphone, // placeholder
+  DISPLAY: Monitor,
+  THERMOSTAT: Monitor, // placeholder
+  CAMERA: Monitor, // placeholder
 }
 
 const statusConfig: Record<DeviceStatus, { label: string; dot: string; text: string }> = {
