@@ -17,6 +17,7 @@ export function useLocalStorage<T>(
     try {
       const item = window.localStorage.getItem(key)
       if (item) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setStored(JSON.parse(item))
       }
     } catch (e) {
@@ -58,6 +59,7 @@ export function useLocalStorage<T>(
  */
 export function useHydrated() {
   const [h, setH] = useState(false)
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setH(true), [])
   return h
 }
