@@ -6,11 +6,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
     const room = searchParams.get('room')
+    const deviceId = searchParams.get('deviceId')
+    const id = searchParams.get('id')
 
     const devices = await db.device.findMany({
       where: {
         ...(status ? { status: status as any } : {}),
         ...(room ? { room } : {}),
+        ...(deviceId ? { deviceId } : {}),
+        ...(id ? { id } : {}),
       },
       include: {
         _count: {
