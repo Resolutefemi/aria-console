@@ -30,8 +30,8 @@ export default function Home() {
   const { user, loading } = useAuth()
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null)
 
-  // Fetch first device for activity panel
-  const { data: devicesData } = useApi<{ devices: any[] }>('/api/devices?limit=1')
+  // Fetch paired devices only (devices linked via the pairing flow)
+  const { data: devicesData } = useApi<{ devices: any[] }>('/api/devices?paired=true&limit=1')
   const firstDevice = devicesData?.devices?.[0]
   const activeDeviceId = selectedDeviceId ?? firstDevice?.id ?? null
   const activeDevice = firstDevice
@@ -86,8 +86,26 @@ export default function Home() {
 
           <StatsCards />
 
-          {activeDevice && (
+          {activeDevice ? (
             <DeviceActivity device={activeDevice} />
+          ) : (
+            <section className="rounded-lg border-2 border-dashed border-border bg-card/50 p-8 text-center">
+              <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-3">
+                <Plus className="w-6 h-6 text-accent" />
+              </div>
+              <h2 className="text-base font-semibold mb-1">No paired devices yet</h2>
+              <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
+                Pair a real device to start monitoring screen time, location, web history, and more.
+                The companion app simulates a phone that reports real data to your dashboard.
+              </p>
+              <Link
+                href="/pair"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-accent text-accent-foreground text-sm font-medium hover:bg-accent/90 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Pair your first device
+              </Link>
+            </section>
           )}
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">

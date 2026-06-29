@@ -4,8 +4,16 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import type { Session, User } from '@supabase/supabase-js'
 import { getBrowserClient } from '@/lib/supabase'
 
+type DbUser = {
+  id: string
+  email: string
+  name: string
+  role: string
+}
+
 type AuthContextValue = {
   user: User | null
+  dbUser: DbUser | null
   session: Session | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
@@ -17,22 +25,46 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
+  const [dbUser, setDbUser] = useState<DbUser | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+
+  async function syncDbUser(sess: Session | null) {
+    if (!sess?.access_token) {
+      setDbUser(null)
+      return
+    }
+    try {
+      const res = await fetch('/api/auth/sync', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${sess.access_token}`,
+        },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setDbUser(data.user)
+      }
+    } catch (e) {
+      console.error('Failed to sync user:', e)
+    }
+  }
 
   useEffect(() => {
     const supabase = getBrowserClient()
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
+      await syncDbUser(session)
       setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      async (_event, session) => {
         setSession(session)
         setUser(session?.user ?? null)
+        await syncDbUser(session)
         setLoading(false)
       }
     )
@@ -59,10 +91,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     const supabase = getBrowserClient()
     await supabase.auth.signOut()
+    setDbUser(null)
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, dbUser, session, loading, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   )

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 import { useToast } from '@/hooks/use-toast'
+import { useAuth } from '@/components/auth/auth-provider'
 import { cn } from '@/lib/utils'
 
 type Activity = {
@@ -45,6 +46,7 @@ function timeAgo(iso: string): string {
 export function DeviceActivity({ device }: { device: Device }) {
   const router = useRouter()
   const { toast } = useToast()
+  const { dbUser } = useAuth()
   const [sendingCmd, setSendingCmd] = useState<string | null>(null)
 
   const { data, loading, error, refetch } = useApi<Activity>(
@@ -53,14 +55,16 @@ export function DeviceActivity({ device }: { device: Device }) {
   )
 
   async function sendCommand(type: string, payload?: any) {
+    if (!dbUser) {
+      toast({ title: 'Sign in required', description: 'You must be signed in to send commands', variant: 'destructive' })
+      return
+    }
     setSendingCmd(type)
     try {
-      // Use a hardcoded user ID for demo — in production, get from auth
-      const sentBy = 'demo-user'
       const res = await fetch(`/api/device/${device.id}/command`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, payload, sentBy }),
+        body: JSON.stringify({ type, payload, sentBy: dbUser.id }),
       })
       if (res.ok) {
         toast({ title: `Command sent: ${type.replace(/_/g, ' ').toLowerCase()}` })

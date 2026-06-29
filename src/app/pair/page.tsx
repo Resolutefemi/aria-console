@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 
 export default function PairPage() {
-  const { user, loading } = useAuth()
+  const { user, dbUser, loading } = useAuth()
   const router = useRouter()
   const { toast } = useToast()
   const [shortCode, setShortCode] = useState<string | null>(null)
@@ -24,7 +24,7 @@ export default function PairPage() {
     )
   }
 
-  if (!user) {
+  if (!user || !dbUser) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center max-w-sm">
@@ -45,7 +45,7 @@ export default function PairPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          parentId: user?.id,
+          parentId: dbUser?.id,
           deviceName: 'New Device',
           deviceType: 'PHONE',
         }),
