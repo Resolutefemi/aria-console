@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 import { cn } from '@/lib/utils'
+import { DeviceDetailDrawer } from '@/components/dashboard/device-detail-drawer'
 
 type DeviceStatus = 'ONLINE' | 'IDLE' | 'OFFLINE' | 'CHARGING'
 type Device = {
@@ -86,6 +87,8 @@ export function DeviceMonitoring() {
   const [statusFilter, setStatusFilter] = useState<'ALL' | DeviceStatus>('ALL')
   const [search, setSearch] = useState('')
   const [roomFilter, setRoomFilter] = useState<string>('ALL')
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   const devices = data?.devices ?? []
   const rooms = useMemo(() => Array.from(new Set(devices.map((d) => d.room))).sort(), [devices])
@@ -188,7 +191,15 @@ export function DeviceMonitoring() {
             const Icon = deviceIcon[d.type]
             const status = statusConfig[d.status]
             return (
-              <article key={d.id} role="listitem" className="bg-card p-4 hover:bg-muted/30 transition-colors group">
+              <article
+              key={d.id}
+              role="listitem"
+              className="bg-card p-4 hover:bg-muted/30 transition-colors group cursor-pointer"
+              onClick={() => { setSelectedDeviceId(d.deviceId); setDrawerOpen(true) }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedDeviceId(d.deviceId); setDrawerOpen(true) } }}
+              tabIndex={0}
+              aria-label={`Open details for ${d.name}`}
+            >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-3 min-w-0">
                     <div className="w-9 h-9 rounded-md bg-muted/60 flex items-center justify-center shrink-0"><Icon className="w-4 h-4" /></div>
@@ -224,6 +235,8 @@ export function DeviceMonitoring() {
           })}
         </div>
       )}
+
+      <DeviceDetailDrawer deviceId={selectedDeviceId} open={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </section>
   )
 }
