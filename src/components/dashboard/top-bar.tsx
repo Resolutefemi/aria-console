@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useSyncExternalStore } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Search,
   Bell,
@@ -8,7 +9,10 @@ import {
   Sun,
   Moon,
   Menu,
+  LogOut,
+  User as UserIcon,
 } from 'lucide-react'
+import { useAuth } from '@/components/auth/auth-provider'
 
 // Stable external store for the live clock — re-renders once per second.
 function subscribe(callback: () => void) {
@@ -84,24 +88,100 @@ export function TopBar() {
 
         <NotificationsBell />
 
-        <button
-          type="button"
-          className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-md hover:bg-muted transition-colors"
-          aria-label="Account menu"
-        >
-          <div
-            className="w-7 h-7 rounded-full bg-gradient-to-br from-accent/80 to-accent flex items-center justify-center text-[11px] font-semibold text-accent-foreground"
-            aria-hidden="true"
-          >
-            OK
-          </div>
-          <div className="hidden md:flex flex-col items-start leading-tight">
-            <span className="text-xs font-medium">Ola Kperogi</span>
-            <span className="text-[10px] text-muted-foreground">Admin</span>
-          </div>
-        </button>
+        <UserMenu />
       </div>
     </header>
+  )
+}
+
+function UserMenu() {
+  const { user, signOut, loading } = useAuth()
+  const router = useRouter()
+  const [open, setOpen] = useState(false)
+
+  if (loading) {
+    return (
+      <div className="w-9 h-9 rounded-full bg-muted animate-pulse" aria-label="Loading user" />
+    )
+  }
+
+  if (!user) {
+    return (
+      <button
+        type="button"
+        onClick={() => router.push('/login')}
+        className="px-3 py-1.5 rounded-md bg-accent text-accent-foreground text-xs font-medium hover:bg-accent/90 transition-colors"
+      >
+        Sign In
+      </button>
+    )
+  }
+
+  // Derive display name and initials from Supabase user
+  const name =
+    (user.user_metadata?.name as string) ||
+    (user.email ? user.email.split('@')[0] : 'User')
+  const initials = name
+    .split(' ')
+    .map((w: string) => w[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-md hover:bg-muted transition-colors"
+        aria-label="Account menu"
+        aria-expanded={open}
+      >
+        <div
+          className="w-7 h-7 rounded-full bg-gradient-to-br from-accent/80 to-accent flex items-center justify-center text-[11px] font-semibold text-accent-foreground"
+          aria-hidden="true"
+        >
+          {initials}
+        </div>
+        <div className="hidden md:flex flex-col items-start leading-tight">
+          <span className="text-xs font-medium">{name}</span>
+          <span className="text-[10px] text-muted-foreground truncate max-w-[140px]">{user.email}</span>
+        </div>
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden="true" />
+          <div
+            role="menu"
+            className="absolute right-0 mt-2 w-56 rounded-lg border border-border bg-popover shadow-lg p-1 z-50"
+          >
+            <div className="px-3 py-2 border-b border-border mb-1">
+              <div className="text-xs font-medium truncate">{name}</div>
+              <div className="text-[11px] text-muted-foreground truncate">{user.email}</div>
+            </div>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => { setOpen(false); router.push('/login') }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 rounded text-xs hover:bg-muted transition-colors text-left"
+            >
+              <UserIcon className="w-3.5 h-3.5" />
+              Profile
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={async () => { setOpen(false); await signOut(); router.push('/login') }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 rounded text-xs hover:bg-muted transition-colors text-left text-destructive"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Sign Out
+            </button>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 

@@ -11,10 +11,24 @@ import { DesignPrinciples } from '@/components/dashboard/design-principles'
 import { PermissionsPosture } from '@/components/dashboard/permissions-posture'
 import { ShortcutsDialog } from '@/components/dashboard/shortcuts-dialog'
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts'
+import { useAuth } from '@/components/auth/auth-provider'
 import { useState } from 'react'
+
+function greeting() {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 18) return 'Good afternoon'
+  return 'Good evening'
+}
 
 export default function Home() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const { user, loading } = useAuth()
+
+  const userName = user
+    ? (user.user_metadata?.name as string) ||
+      (user.email ? user.email.split('@')[0] : 'there')
+    : 'there'
 
   useKeyboardShortcuts([
     { key: '?', shift: true, handler: () => setShortcutsOpen((v) => !v) },
@@ -39,7 +53,9 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
             <div>
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Operations console</p>
-              <h1 className="text-xl font-semibold tracking-tight mt-0.5">Good afternoon, Ola</h1>
+              <h1 className="text-xl font-semibold tracking-tight mt-0.5">
+                {greeting()}, {loading ? '…' : userName}
+              </h1>
               <p className="text-sm text-muted-foreground mt-1">Here&apos;s what&apos;s happening across your voice-controlled devices.</p>
             </div>
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
