@@ -1,0 +1,13 @@
+// Aria Console — Prisma schema
+// Local development uses SQLite; production uses Supabase Postgres.
+// To switch: change the provider to "postgresql" and update DATABASE_URL.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
