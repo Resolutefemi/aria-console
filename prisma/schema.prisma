@@ -74,3 +74,18 @@ enum CommandStatus {
   PARTIAL
   FAILED
 }
+
+/// An energy consumption reading from a device at a specific timestamp.
+model EnergyReading {
+  id          String   @id @default(cuid())
+  deviceId    String
+  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  kilowatts   Float    @map("kilowatts") /// Instantaneous power in kW
+  wattHours   Float    @map("watt_hours") /// Energy consumed in this interval (Wh)
+  recordedAt  DateTime @default(now()) @map("recorded_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([deviceId])
+  @@index([recordedAt])
+  @@map("energy_readings")
+}
