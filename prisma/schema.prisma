@@ -51,3 +51,26 @@ enum DeviceStatus {
   OFFLINE
   CHARGING
 }
+
+/// A voice command issued to a device, with transcript and recognition metadata.
+model VoiceCommand {
+  id         String   @id @default(cuid())
+  transcript String
+  intent     String   /// e.g. "lights.on", "alarm.set"
+  confidence Float    /// 0.0 to 1.0
+  status     CommandStatus @default(SUCCESS)
+  deviceId   String
+  device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  issuedAt   DateTime @default(now()) @map("issued_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([deviceId])
+  @@index([issuedAt])
+  @@map("voice_commands")
+}
+
+enum CommandStatus {
+  SUCCESS
+  PARTIAL
+  FAILED
+}
