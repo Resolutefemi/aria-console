@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { recordAuditLog, AUDIT_ACTIONS } from '@/lib/audit'
 
 export async function PATCH(
   request: NextRequest,
@@ -20,6 +21,14 @@ export async function PATCH(
         }),
       },
       include: { device: { select: { name: true, deviceId: true } } },
+    })
+
+    // Record in audit log
+    await recordAuditLog({
+      action: status === 'ACKNOWLEDGED' ? AUDIT_ACTIONS.ALERT_ACKNOWLEDGE : status === 'DISMISSED' ? AUDIT_ACTIONS.ALERT_DISMISS : AUDIT_ACTIONS.ALERT_RESOLVE,
+      resource: 'security_alert',
+      resourceId: id,
+      metadata: { status, acknowledgedBy, alertTitle: alert.title },
     })
 
     return NextResponse.json({ alert })
