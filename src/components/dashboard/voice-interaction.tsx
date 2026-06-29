@@ -2,11 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
-  Mic, MicOff, Volume2, VolumeX, Loader2, AlertCircle, Radio,
+  Mic, MicOff, Volume2, VolumeX, Loader2, AlertCircle,
+  Ear,
 } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
-import { useSpeechRecognition, useSpeechSynthesis } from '@/hooks/use-speech'
+import { useSpeechSynthesis } from '@/hooks/use-speech'
+import { useWakeWord } from '@/hooks/use-wake-word'
 import { parseVoiceCommand, buildVoiceResponse } from '@/lib/voice-commands'
+import { useAccessibility } from '@/components/accessibility/accessibility-provider'
 import { cn } from '@/lib/utils'
 
 type VoiceCommand = {
@@ -45,12 +48,11 @@ function timeStr(d: Date): string {
 }
 
 export function VoiceInteraction() {
-  const [enabled, setEnabled] = useState(false)
   const [commands, setCommands] = useState<VoiceCommand[]>([])
-  const [interimTranscript, setInterimTranscript] = useState('')
   const [muted, setMuted] = useState(false)
-  const [lastDeviceId, setLastDeviceId] = useState<string | null>(null)
+  const [autoStartTried, setAutoStartTried] = useState(false)
   const commandsEndRef = useRef<HTMLDivElement>(null)
+  const { settings } = useAccessibility()
 
   // Fetch real data for voice responses
   const { data: devicesData } = useApi<{ devices: Device[] }>('/api/devices?paired=true&limit=1', {
@@ -67,48 +69,20 @@ export function VoiceInteraction() {
     refetchInterval: 20000,
   })
 
-  // Speech recognition
-  const { state: recState, transcript, isSupported: recSupported, start, stop, reset } = useSpeechRecognition({
-    continuous: false,
-    interimResults: true,
-    onResult: (text, isFinal) => {
-      if (isFinal) {
-        handleVoiceCommand(text)
-        setInterimTranscript('')
-      } else {
-        setInterimTranscript(text)
-      }
-    },
-    onError: (err) => {
-      if (err !== 'No speech detected') {
-        console.error('Speech recognition error:', err)
-      }
-    },
-  })
-
   // Text-to-speech
   const { speak, cancel: cancelSpeech, speaking, isSupported: ttsSupported, voices } = useSpeechSynthesis()
 
-  // Auto-scroll to latest command
-  useEffect(() => {
-    commandsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [commands])
+  // Use refs to break the circular dependency between handleCommand and wakeWord
+  const wakeWordReturnToListeningRef = useRef<() => void>(() => {})
+  const wakeWordStartSpeakingRef = useRef<() => void>(() => {})
 
-  // Wake word detection — listen for "Aria" when enabled
-  useEffect(() => {
-    if (!enabled || recState === 'listening') return
-    // If not currently listening and enabled, keep listening continuously
-    const id = setTimeout(() => {
-      if (recState === 'idle' && enabled) {
-        start()
-      }
-    }, 500)
-    return () => clearTimeout(id)
-  }, [enabled, recState, start])
-
-  const handleVoiceCommand = useCallback((text: string) => {
-    const trimmed = text.trim()
-    if (!trimmed) return
+  // Handle a voice command — parse, respond, speak
+  const handleCommand = useCallback((transcript: string) => {
+    const trimmed = transcript.trim()
+    if (!trimmed) {
+      wakeWordReturnToListeningRef.current()
+      return
+    }
 
     const action = parseVoiceCommand(trimmed)
     const data = {
@@ -131,49 +105,75 @@ export function VoiceInteraction() {
 
     // Speak the response (unless muted)
     if (!muted && ttsSupported) {
-      speak(response, { rate: 1, pitch: 1 })
+      wakeWordStartSpeakingRef.current()
+      speak(response, {
+        rate: 1,
+        pitch: 1,
+        onEnd: () => {
+          wakeWordReturnToListeningRef.current()
+        },
+      })
+    } else {
+      // If muted, still return to listening
+      wakeWordReturnToListeningRef.current()
     }
 
-    // Execute real actions (lock, unlock, ring)
+    // Execute real actions (lock, unlock, ring, locate)
     if (device) {
-      if (action.type === 'LOCK_DEVICE') {
+      const fetchCmd = (type: string, payload?: any) =>
         fetch(`/api/device/${device.id}/command`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'LOCK_DEVICE', sentBy: 'voice' }),
+          body: JSON.stringify({ type, payload, sentBy: 'voice' }),
         }).catch(() => {})
-      } else if (action.type === 'UNLOCK_DEVICE') {
-        fetch(`/api/device/${device.id}/command`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'UNLOCK_DEVICE', sentBy: 'voice' }),
-        }).catch(() => {})
-      } else if (action.type === 'RING_DEVICE') {
-        fetch(`/api/device/${device.id}/command`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'RING_DEVICE', sentBy: 'voice' }),
-        }).catch(() => {})
-      } else if (action.type === 'LOCATION') {
-        fetch(`/api/device/${device.id}/command`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'REQUEST_LOCATION', sentBy: 'voice' }),
-        }).catch(() => {})
-      }
+
+      if (action.type === 'LOCK_DEVICE') fetchCmd('LOCK_DEVICE')
+      else if (action.type === 'UNLOCK_DEVICE') fetchCmd('UNLOCK_DEVICE')
+      else if (action.type === 'RING_DEVICE') fetchCmd('RING_DEVICE')
+      else if (action.type === 'LOCATION') fetchCmd('REQUEST_LOCATION')
     }
   }, [devicesData, activity, alertsData, device, muted, ttsSupported, speak])
 
-  function toggleListening() {
-    if (!recSupported) return
-    if (enabled) {
-      setEnabled(false)
-      stop()
-      cancelSpeech()
+  // Wake word hook
+  const wakeWord = useWakeWord({
+    wakeWord: 'hey aria',
+    onCommand: handleCommand,
+    onWakeWordDetected: () => {
+      // Play a subtle confirmation "Yes?"
+      if (!muted && ttsSupported) {
+        speak('Yes?', { rate: 1.2, pitch: 1.1 })
+      }
+    },
+    onError: (err) => {
+      console.error('Wake word error:', err)
+    },
+  })
+
+  // Sync refs after wakeWord is created
+  useEffect(() => {
+    wakeWordReturnToListeningRef.current = wakeWord.returnToListening
+    wakeWordStartSpeakingRef.current = wakeWord.startSpeaking
+  }, [wakeWord.returnToListening, wakeWord.startSpeaking])
+
+  // Auto-scroll to latest command
+  useEffect(() => {
+    commandsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [commands])
+
+  // Auto-arm wake word if screen reader mode is on (after first user interaction)
+  useEffect(() => {
+    if (!settings.screenReaderMode || !wakeWord.isSupported || autoStartTried) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAutoStartTried(true)
+  }, [settings.screenReaderMode, wakeWord.isSupported, autoStartTried])
+
+  function toggleArmed() {
+    if (!wakeWord.isSupported) return
+    if (wakeWord.state === 'inactive') {
+      wakeWord.arm()
     } else {
-      setEnabled(true)
-      reset()
-      start()
+      wakeWord.disarm()
+      cancelSpeech()
     }
   }
 
@@ -186,12 +186,37 @@ export function VoiceInteraction() {
 
   function speakLastResponse() {
     if (commands.length > 0 && ttsSupported) {
-      speak(commands[0].response)
+      wakeWord.startSpeaking()
+      speak(commands[0].response, {
+        onEnd: () => wakeWord.returnToListening(),
+      })
     }
   }
 
-  const isListening = recState === 'listening'
-  const isProcessing = recState === 'processing' || speaking
+  // Wake word is active when state is anything other than 'inactive'
+  const isArmed = wakeWord.state !== 'inactive'
+  const isListeningWake = wakeWord.state === 'listening-wake'
+  const isHearingCommand = wakeWord.state === 'hearing-command'
+  const isProcessing = wakeWord.state === 'processing'
+  const isSpeaking = wakeWord.state === 'speaking' || speaking
+
+  const stateLabel = {
+    'inactive': 'Off',
+    'armed': 'Off',
+    'listening-wake': 'Listening for "Hey Aria"',
+    'hearing-command': 'Listening for command',
+    'processing': 'Processing…',
+    'speaking': 'Speaking…',
+  }[wakeWord.state] || 'Off'
+
+  const stateColor = {
+    'inactive': 'bg-muted-foreground',
+    'armed': 'bg-muted-foreground',
+    'listening-wake': 'bg-emerald-500',
+    'hearing-command': 'bg-accent',
+    'processing': 'bg-amber-500',
+    'speaking': 'bg-sky-400',
+  }[wakeWord.state] || 'bg-muted-foreground'
 
   return (
     <section
@@ -207,23 +232,18 @@ export function VoiceInteraction() {
             <span
               className={cn(
                 'inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium',
-                enabled
-                  ? 'bg-emerald-500/10 text-emerald-500'
-                  : 'bg-muted text-muted-foreground'
+                isArmed ? 'bg-emerald-500/10 text-emerald-500' : 'bg-muted text-muted-foreground'
               )}
             >
               <span
-                className={cn(
-                  'w-1.5 h-1.5 rounded-full',
-                  enabled ? 'bg-emerald-500 live-dot' : 'bg-muted-foreground'
-                )}
+                className={cn('w-1.5 h-1.5 rounded-full', stateColor, isArmed && 'live-dot')}
                 aria-hidden="true"
               />
-              {enabled ? (isListening ? 'Listening' : 'Active') : 'Off'}
+              {stateLabel}
             </span>
           </div>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Say &ldquo;Aria, what&apos;s happening?&rdquo; or tap the mic to ask
+            Say &ldquo;Hey Aria&rdquo; then your command — works hands-free after one tap
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -243,34 +263,34 @@ export function VoiceInteraction() {
           </button>
           <button
             type="button"
-            onClick={toggleListening}
-            disabled={!recSupported}
+            onClick={toggleArmed}
+            disabled={!wakeWord.isSupported}
             className={cn(
               'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs transition-colors',
-              enabled
+              isArmed
                 ? 'bg-destructive text-destructive-foreground border-destructive hover:bg-destructive/90'
                 : 'bg-accent text-accent-foreground border-accent hover:bg-accent/90',
-              !recSupported && 'opacity-50 cursor-not-allowed'
+              !wakeWord.isSupported && 'opacity-50 cursor-not-allowed'
             )}
-            aria-pressed={enabled}
-            aria-label={enabled ? 'Stop voice listening' : 'Start voice listening'}
+            aria-pressed={isArmed}
+            aria-label={isArmed ? 'Stop voice assistant' : 'Start voice assistant — enables Hey Aria wake word'}
           >
-            {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">{enabled ? 'Stop' : 'Start'}</span>
+            {isArmed ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{isArmed ? 'Stop' : 'Start'}</span>
           </button>
         </div>
       </header>
 
-      {/* Live waveform / status */}
+      {/* Live status */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-border">
         <div className="bg-card p-4 md:col-span-2 flex flex-col">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
-              {isListening ? 'Listening…' : speaking ? 'Speaking…' : 'Tap mic to ask'}
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground" aria-live="polite">
+              {stateLabel}
             </span>
-            {speaking && (
+            {isSpeaking && (
               <button
-                onClick={() => cancelSpeech()}
+                onClick={() => { cancelSpeech(); wakeWord.returnToListening() }}
                 className="text-[10px] text-muted-foreground hover:text-foreground"
                 aria-label="Stop speaking"
               >
@@ -284,32 +304,44 @@ export function VoiceInteraction() {
             aria-live="polite"
             aria-atomic="true"
           >
-            {isListening ? (
-              <div className="flex items-center gap-2">
-                <LiveWaveform />
-                <span className="text-xs text-muted-foreground truncate max-w-[200px]">
-                  {interimTranscript || 'Listening…'}
-                </span>
-              </div>
-            ) : speaking ? (
-              <div className="flex items-center gap-2 text-accent">
-                <Volume2 className="w-4 h-4 animate-pulse" />
-                <span className="text-xs">Speaking…</span>
-              </div>
-            ) : !recSupported ? (
+            {!wakeWord.isSupported ? (
               <div className="text-xs text-muted-foreground text-center px-4">
                 <AlertCircle className="w-4 h-4 mx-auto mb-1" />
-                Voice recognition not supported in this browser. Use Chrome, Edge, or Safari.
+                Voice recognition requires Chrome, Edge, or Safari.
+              </div>
+            ) : isListeningWake ? (
+              <div className="flex items-center gap-3 w-full px-4">
+                <LiveWaveform color="emerald" />
+                <span className="text-xs text-muted-foreground truncate">
+                  Say &ldquo;Hey Aria&rdquo;…
+                </span>
+              </div>
+            ) : isHearingCommand ? (
+              <div className="flex items-center gap-3 w-full px-4">
+                <LiveWaveform color="accent" />
+                <span className="text-xs text-accent truncate font-medium">
+                  {wakeWord.lastTranscript || 'Listening for your command…'}
+                </span>
+              </div>
+            ) : isProcessing ? (
+              <div className="flex items-center gap-2 text-amber-500">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-xs">Processing…</span>
+              </div>
+            ) : isSpeaking ? (
+              <div className="flex items-center gap-2 text-sky-400">
+                <Volume2 className="w-4 h-4 animate-pulse" />
+                <span className="text-xs">Speaking…</span>
               </div>
             ) : (
               <div className="text-xs text-muted-foreground text-center px-4">
                 <Mic className="w-4 h-4 mx-auto mb-1 opacity-50" />
-                Tap &ldquo;Start&rdquo; to enable voice commands
+                Tap &ldquo;Start&rdquo; to enable hands-free voice
               </div>
             )}
           </div>
           <div className="mt-2 text-[11px] text-muted-foreground font-mono">
-            Recognition: {recSupported ? '✓' : '✗'} · TTS: {ttsSupported ? '✓' : '✗'} · {voices.length} voices
+            Wake word: ✓ · TTS: {ttsSupported ? '✓' : '✗'} · {voices.length} voices
           </div>
         </div>
         <div className="bg-card p-4 flex flex-col justify-between gap-3">
@@ -317,13 +349,13 @@ export function VoiceInteraction() {
             <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
               Try saying
             </div>
-            <ul className="mt-1.5 space-y-1 text-[11px] text-muted-foreground">
-              <li>&ldquo;What&apos;s happening?&rdquo;</li>
-              <li>&ldquo;Where is my device?&rdquo;</li>
-              <li>&ldquo;Screen time?&rdquo;</li>
-              <li>&ldquo;Any alerts?&rdquo;</li>
-              <li>&ldquo;Lock the device&rdquo;</li>
-              <li>&ldquo;Ring my phone&rdquo;</li>
+            <ul className="mt-1.5 space-y-1.5 text-[11px] text-muted-foreground">
+              <li><span className="text-accent font-medium">&ldquo;Hey Aria,&rdquo;</span> what&apos;s happening?</li>
+              <li><span className="text-accent font-medium">&ldquo;Hey Aria,&rdquo;</span> where is my device?</li>
+              <li><span className="text-accent font-medium">&ldquo;Hey Aria,&rdquo;</span> screen time?</li>
+              <li><span className="text-accent font-medium">&ldquo;Hey Aria,&rdquo;</span> any alerts?</li>
+              <li><span className="text-accent font-medium">&ldquo;Hey Aria,&rdquo;</span> lock the device</li>
+              <li><span className="text-accent font-medium">&ldquo;Hey Aria,&rdquo;</span> ring my phone</li>
             </ul>
           </div>
           {commands.length > 0 && (
@@ -338,7 +370,7 @@ export function VoiceInteraction() {
         </div>
       </div>
 
-      {/* Command log */}
+      {/* Conversation log */}
       <div className="border-t border-border">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -355,7 +387,7 @@ export function VoiceInteraction() {
         </div>
         {commands.length === 0 ? (
           <div className="p-8 text-center text-xs text-muted-foreground">
-            No voice commands yet. Tap &ldquo;Start&rdquo; and say something.
+            No voice commands yet. Tap &ldquo;Start&rdquo; and say &ldquo;Hey Aria&rdquo;.
           </div>
         ) : (
           <ul
@@ -398,11 +430,21 @@ export function VoiceInteraction() {
           </ul>
         )}
       </div>
+
+      {/* Screen reader hint */}
+      {settings.screenReaderMode && !isArmed && wakeWord.isSupported && (
+        <div className="border-t border-border p-3 bg-accent/5">
+          <div className="flex items-center gap-2 text-[11px] text-accent">
+            <Ear className="w-3.5 h-3.5" />
+            <span>Screen reader mode detected. Tap &ldquo;Start&rdquo; to enable hands-free voice control with &ldquo;Hey Aria&rdquo;.</span>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
 
-function LiveWaveform() {
+function LiveWaveform({ color }: { color: 'emerald' | 'accent' }) {
   const [bars, setBars] = useState<number[]>(Array.from({ length: 32 }, () => Math.random()))
 
   useEffect(() => {
@@ -419,12 +461,14 @@ function LiveWaveform() {
     return () => clearInterval(id)
   }, [])
 
+  const colorClass = color === 'emerald' ? 'bg-emerald-500' : 'bg-accent'
+
   return (
     <div className="flex items-center justify-center gap-[2px] h-12" aria-hidden="true">
       {bars.map((h, i) => (
         <div
           key={i}
-          className="w-[3px] rounded-full bg-accent transition-[height] duration-100 ease-out"
+          className={cn('w-[3px] rounded-full transition-[height] duration-100 ease-out', colorClass)}
           style={{ height: `${Math.max(8, h * 100)}%` }}
         />
       ))}
