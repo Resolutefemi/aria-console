@@ -23,7 +23,7 @@ export async function recordAuditLog(params: {
         action: params.action,
         resource: params.resource,
         resourceId: params.resourceId,
-        metadata: params.metadata ? JSON.stringify(params.metadata) : null,
+        metadata: params.metadata ?? null,
         userId: params.userId,
         ipAddress,
         userAgent,

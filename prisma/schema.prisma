@@ -1,6 +1,6 @@
 // Aria Console — Prisma schema
-// Local development uses SQLite; production uses Supabase Postgres.
-// To switch: change the provider to "postgresql" and update DATABASE_URL.
+// Production database: Supabase Postgres
+// Connection: pooled (port 6543) for runtime, direct (port 5432) for migrations
 
 generator client {
   provider = "prisma-client-js"
@@ -8,8 +8,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 /// A paired device in the voice-controlled smartphone system.
@@ -100,7 +101,7 @@ model SecurityAlert {
   status      AlertStatus    @default(OPEN)
   deviceId    String?
   device      Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
-  metadata    String?  /// JSON-encoded additional context (SQLite has no JSON type)
+  metadata    Json?     /// Additional context (Postgres jsonb)
   triggeredAt DateTime @default(now()) @map("triggered_at")
   acknowledgedAt DateTime? @map("acknowledged_at")
   acknowledgedBy String?  @map("acknowledged_by")
@@ -159,7 +160,7 @@ model AuditLog {
   action    String   /// e.g. "alert.acknowledge", "device.refresh"
   resource  String   /// e.g. "security_alert", "device"
   resourceId String? @map("resource_id")
-  metadata  String?  /// JSON-encoded context
+  metadata  Json?     /// JSON-encoded context (Postgres jsonb)
   ipAddress String?  @map("ip_address")
   userAgent String?  @map("user_agent")
   createdAt DateTime @default(now()) @map("created_at")
