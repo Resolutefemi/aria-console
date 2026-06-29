@@ -1,25 +1,15 @@
 'use client'
 
+import { useState, useMemo } from 'react'
 import {
-  Smartphone,
-  Speaker,
-  Watch,
-  Tablet,
-  Headphones,
-  Monitor,
-  Wifi,
-  Battery,
-  BatteryLow,
-  BatteryWarning,
-  MoreHorizontal,
-  RefreshCw,
+  Smartphone, Speaker, Watch, Tablet, Headphones, Monitor,
+  Wifi, Battery, BatteryLow, BatteryWarning, MoreHorizontal, RefreshCw, Search,
   type LucideIcon,
 } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
 import { cn } from '@/lib/utils'
 
 type DeviceStatus = 'ONLINE' | 'IDLE' | 'OFFLINE' | 'CHARGING'
-
 type Device = {
   id: string
   deviceId: string
@@ -32,18 +22,11 @@ type Device = {
   ipAddress: string | null
   firmware: string | null
   lastSeenAt: string
-  _count?: { voiceCommands: number; energyReadings: number; securityAlerts: number }
 }
 
 const deviceIcon: Record<Device['type'], LucideIcon> = {
-  PHONE: Smartphone,
-  SPEAKER: Speaker,
-  WATCH: Watch,
-  TABLET: Tablet,
-  HEADPHONES: Headphones,
-  DISPLAY: Monitor,
-  THERMOSTAT: Monitor, // placeholder
-  CAMERA: Monitor, // placeholder
+  PHONE: Smartphone, SPEAKER: Speaker, WATCH: Watch, TABLET: Tablet,
+  HEADPHONES: Headphones, DISPLAY: Monitor, THERMOSTAT: Monitor, CAMERA: Monitor,
 }
 
 const statusConfig: Record<DeviceStatus, { label: string; dot: string; text: string }> = {
@@ -90,62 +73,125 @@ function timeAgo(iso: string) {
   return `${Math.floor(diff / 86_400_000)} d ago`
 }
 
+const STATUS_FILTERS: { id: 'ALL' | DeviceStatus; label: string }[] = [
+  { id: 'ALL', label: 'All' },
+  { id: 'ONLINE', label: 'Online' },
+  { id: 'IDLE', label: 'Idle' },
+  { id: 'CHARGING', label: 'Charging' },
+  { id: 'OFFLINE', label: 'Offline' },
+]
+
 export function DeviceMonitoring() {
-  const { data, loading, error, refetch } = useApi<{ devices: Device[] }>('/api/devices', {
-    refetchInterval: 15000,
-  })
+  const { data, loading, error, refetch } = useApi<{ devices: Device[] }>('/api/devices', { refetchInterval: 15000 })
+  const [statusFilter, setStatusFilter] = useState<'ALL' | DeviceStatus>('ALL')
+  const [search, setSearch] = useState('')
+  const [roomFilter, setRoomFilter] = useState<string>('ALL')
 
   const devices = data?.devices ?? []
+  const rooms = useMemo(() => Array.from(new Set(devices.map((d) => d.room))).sort(), [devices])
+
+  const filtered = useMemo(() => {
+    return devices.filter((d) => {
+      if (statusFilter !== 'ALL' && d.status !== statusFilter) return false
+      if (roomFilter !== 'ALL' && d.room !== roomFilter) return false
+      if (search) {
+        const q = search.toLowerCase()
+        if (!d.name.toLowerCase().includes(q) && !d.deviceId.toLowerCase().includes(q) && !d.room.toLowerCase().includes(q)) return false
+      }
+      return true
+    })
+  }, [devices, statusFilter, roomFilter, search])
+
   const online = devices.filter((d) => d.status === 'ONLINE').length
   const idle = devices.filter((d) => d.status === 'IDLE').length
   const offline = devices.filter((d) => d.status === 'OFFLINE').length
 
   return (
     <section aria-labelledby="devices-heading" className="rounded-lg border border-border bg-card">
-      <header className="flex items-center justify-between gap-3 p-4 border-b border-border">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h2 id="devices-heading" className="text-sm font-semibold tracking-tight">Device Monitoring</h2>
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">{devices.length} paired</span>
+      <header className="p-4 border-b border-border">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 id="devices-heading" className="text-sm font-semibold tracking-tight">Device Monitoring</h2>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">{devices.length} paired</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              <span className="text-emerald-500">{online} online</span>
+              <span className="mx-1.5">·</span>
+              <span className="text-amber-500">{idle} idle</span>
+              <span className="mx-1.5">·</span>
+              <span>{offline} offline</span>
+              {filtered.length !== devices.length && <span className="ml-2 text-muted-foreground">· {filtered.length} shown</span>}
+            </p>
           </div>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            <span className="text-emerald-500">{online} online</span>
-            <span className="mx-1.5">·</span>
-            <span className="text-amber-500">{idle} idle</span>
-            <span className="mx-1.5">·</span>
-            <span>{offline} offline</span>
-          </p>
-        </div>
-        <div className="flex items-center gap-1">
           <button type="button" onClick={() => refetch()} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border hover:bg-muted transition-colors text-xs" aria-label="Refresh device list">
             <RefreshCw className={cn('w-3.5 h-3.5', loading && 'animate-spin')} />
             <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <label className="relative flex-1 min-w-[160px]">
+            <span className="sr-only">Search devices by name, ID, or room</span>
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, ID, or room…"
+              className="w-full h-8 pl-8 pr-3 rounded-md border border-border bg-background text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </label>
+
+          <select
+            value={roomFilter}
+            onChange={(e) => setRoomFilter(e.target.value)}
+            className="h-8 px-2 rounded-md border border-border bg-background text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+            aria-label="Filter by room"
+          >
+            <option value="ALL">All rooms</option>
+            {rooms.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+
+          <div className="flex items-center gap-0.5 rounded-md border border-border bg-background p-0.5" role="group" aria-label="Filter by status">
+            {STATUS_FILTERS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setStatusFilter(f.id)}
+                aria-pressed={statusFilter === f.id}
+                className={cn(
+                  'px-2 py-1 rounded text-[11px] font-medium transition-colors',
+                  statusFilter === f.id ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </header>
 
-      {error && (
-        <div className="p-4 text-sm text-destructive">Failed to load devices: {error}</div>
-      )}
+      {error && <div className="p-4 text-sm text-destructive">Failed to load devices: {error}</div>}
 
-      {loading && devices.length === 0 ? (
+      {loading && filtered.length === 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-px bg-border">
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="bg-card p-4 h-32 animate-pulse" />
-          ))}
+          {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="bg-card p-4 h-32 animate-pulse" />)}
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="p-8 text-center text-sm text-muted-foreground">
+          No devices match the current filters.
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-px bg-border" role="list">
-          {devices.map((d) => {
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-px bg-border max-h-[640px] overflow-y-auto" role="list">
+          {filtered.map((d) => {
             const Icon = deviceIcon[d.type]
             const status = statusConfig[d.status]
             return (
               <article key={d.id} role="listitem" className="bg-card p-4 hover:bg-muted/30 transition-colors group">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-md bg-muted/60 flex items-center justify-center shrink-0">
-                      <Icon className="w-4 h-4" />
-                    </div>
+                    <div className="w-9 h-9 rounded-md bg-muted/60 flex items-center justify-center shrink-0"><Icon className="w-4 h-4" /></div>
                     <div className="min-w-0">
                       <h3 className="text-sm font-medium truncate" title={d.name}>{d.name}</h3>
                       <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
@@ -167,17 +213,10 @@ export function DeviceMonitoring() {
                   <span className="text-[11px] text-muted-foreground tabular-nums">{timeAgo(d.lastSeenAt)}</span>
                 </div>
                 <div className="mt-3 pt-3 border-t border-border/60 grid grid-cols-2 gap-2 text-[11px]">
-                  <div className="flex items-center gap-1.5">
-                    <BatteryIcon level={d.battery} />
-                    <span className="tabular-nums">{d.battery}%</span>
-                  </div>
+                  <div className="flex items-center gap-1.5"><BatteryIcon level={d.battery} /><span className="tabular-nums">{d.battery}%</span></div>
                   <div className="flex items-center gap-1.5 justify-end">
                     <Wifi className="w-3.5 h-3.5 text-muted-foreground" />
-                    {d.status === 'OFFLINE' ? (
-                      <span className="text-muted-foreground">Offline</span>
-                    ) : (
-                      <SignalBars dbm={d.signal} />
-                    )}
+                    {d.status === 'OFFLINE' ? <span className="text-muted-foreground">Offline</span> : <SignalBars dbm={d.signal} />}
                   </div>
                 </div>
               </article>
