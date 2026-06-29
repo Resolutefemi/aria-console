@@ -1,7 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronRight } from 'lucide-react'
+import {
+  LayoutDashboard,
+  Smartphone,
+  Mic,
+  Zap,
+  ShieldCheck,
+  ChevronRight,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type NavItem = {
@@ -12,6 +19,14 @@ type NavItem = {
   badgeTone?: 'default' | 'critical'
 }
 
+const navItems: NavItem[] = [
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'devices', label: 'Devices', icon: Smartphone, badge: '12' },
+  { id: 'voice', label: 'Voice', icon: Mic },
+  { id: 'energy', label: 'Energy', icon: Zap },
+  { id: 'security', label: 'Security', icon: ShieldCheck, badge: '2', badgeTone: 'critical' },
+]
+
 export function Sidebar() {
   const [active, setActive] = useState('overview')
   return (
@@ -19,12 +34,8 @@ export function Sidebar() {
       className="hidden lg:flex flex-col w-60 shrink-0 border-r border-border bg-sidebar h-screen sticky top-0"
       aria-label="Primary navigation"
     >
-      {/* Brand */}
       <div className="flex items-center gap-2.5 h-16 px-5 border-b border-border">
-        <div
-          className="w-8 h-8 rounded-md bg-gradient-to-br from-accent to-accent/70 flex items-center justify-center shadow-sm"
-          aria-hidden="true"
-        >
+        <div className="w-8 h-8 rounded-md bg-gradient-to-br from-accent to-accent/70 flex items-center justify-center shadow-sm" aria-hidden="true">
           <span className="font-mono text-sm font-bold text-accent-foreground">A</span>
         </div>
         <div className="flex flex-col leading-tight">
@@ -33,7 +44,6 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Workspace switcher */}
       <div className="px-3 pt-3">
         <button
           type="button"
@@ -48,8 +58,45 @@ export function Sidebar() {
         </button>
       </div>
 
-      <nav className="flex-1 px-3 py-4" aria-label="Main">
-        <p className="text-[11px] text-muted-foreground">Nav items added in next commit</p>
+      <nav className="flex-1 px-3 py-4 overflow-y-auto" aria-label="Main">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground px-3 mb-2">Monitor</div>
+        <ul className="space-y-0.5">
+          {navItems.map((item) => {
+            const Icon = item.icon
+            const isActive = active === item.id
+            return (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => setActive(item.id)}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={cn(
+                    'w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
+                    isActive
+                      ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/60'
+                  )}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className="flex-1 text-left">{item.label}</span>
+                  {item.badge && (
+                    <span
+                      className={cn(
+                        'text-[10px] px-1.5 py-0.5 rounded font-mono',
+                        item.badgeTone === 'critical'
+                          ? 'bg-destructive/15 text-destructive'
+                          : 'bg-muted text-muted-foreground'
+                      )}
+                      aria-label={`${item.badge} items`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
       </nav>
     </aside>
   )
