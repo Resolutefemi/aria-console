@@ -80,9 +80,11 @@ export function useWakeWord(options: UseWakeWordOptions = {}) {
       (window.SpeechRecognition || window.webkitSpeechRecognition)
 
     if (!SpeechRecognition) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsSupported(false)
       return
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsSupported(true)
 
     const recognition = new SpeechRecognition()
@@ -120,8 +122,9 @@ export function useWakeWord(options: UseWakeWordOptions = {}) {
           // e.g. "Hey Aria, what's happening?" → command is "what's happening?"
           const afterWake = fullText.slice(match.index! + match[0].length).trim()
           if (afterWake.length > 3) {
-            // Command was already spoken
-            processCommandRef.current(afterWake)
+            // Command was already spoken — process inline
+            setState('processing')
+            onCommandRef.current?.(afterWake.trim())
           }
           return
         }
@@ -136,7 +139,9 @@ export function useWakeWord(options: UseWakeWordOptions = {}) {
             command = command.slice(match.index + match[0].length).trim()
           }
           if (command.length > 0) {
-            processCommandRef.current(command)
+            // Process inline
+            setState('processing')
+            onCommandRef.current?.(command.trim())
           } else {
             // Just the wake word was spoken — wait for the command
             // Set a timeout: if no command in 5 seconds, go back to wake listening
@@ -188,10 +193,6 @@ export function useWakeWord(options: UseWakeWordOptions = {}) {
     // After processing, return to wake word listening
     // (the caller should call returnToListening() after speaking the response)
   }, [])
-
-  // Keep a ref so the onresult handler (inside useEffect) can call it
-  const processCommandRef = useRef(processCommand)
-  useEffect(() => { processCommandRef.current = processCommand }, [processCommand])
 
   const arm = useCallback(() => {
     if (!recognitionRef.current) return
