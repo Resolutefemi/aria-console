@@ -8,6 +8,7 @@ import { VoiceInteraction } from '@/components/dashboard/voice-interaction'
 import { EnergyUsage } from '@/components/dashboard/energy-usage'
 import { SecurityAlerts } from '@/components/dashboard/security-alerts'
 import { DesignPrinciples } from '@/components/dashboard/design-principles'
+import { PermissionsPosture } from '@/components/dashboard/permissions-posture'
 import { ShortcutsDialog } from '@/components/dashboard/shortcuts-dialog'
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts'
 import { useState } from 'react'
@@ -59,6 +60,8 @@ export default function Home() {
           <EnergyUsage />
 
           <SecurityAlerts />
+
+          <PermissionsPosture />
 
           <DesignPrinciples />
 
