@@ -7,6 +7,8 @@ import {
   Mic,
   Zap,
   ShieldCheck,
+  Settings,
+  HelpCircle,
   ChevronRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -18,6 +20,11 @@ type NavItem = {
   badge?: string
   badgeTone?: 'default' | 'critical'
 }
+
+const bottomItems: NavItem[] = [
+  { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'help', label: 'Help & Docs', icon: HelpCircle },
+]
 
 const navItems: NavItem[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -92,6 +99,24 @@ export function Sidebar() {
                       {item.badge}
                     </span>
                   )}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground px-3 mb-2 mt-6">System</div>
+        <ul className="space-y-0.5">
+          {bottomItems.map((item) => {
+            const Icon = item.icon
+            return (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/60 transition-colors"
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className="flex-1 text-left">{item.label}</span>
                 </button>
               </li>
             )
