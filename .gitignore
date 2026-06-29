@@ -72,5 +72,8 @@ build/
 # OS
 Thumbs.db
 
+# Uploaded files (pasted screenshots, etc.) — never commit
+/upload/
+
 # Scripts working directory
 scripts/tmp/
