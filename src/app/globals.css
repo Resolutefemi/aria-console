@@ -114,3 +114,15 @@
   --sidebar-border: oklch(0.28 0.006 60);
   --sidebar-ring: oklch(0.78 0.14 70);
 }
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "cv11", "ss01", "ss03";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
