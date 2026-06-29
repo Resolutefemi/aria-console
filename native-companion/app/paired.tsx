@@ -1,15 +1,14 @@
 // ═══════════════════════════════════════════════════════════════
-// Aria Companion — Main Screen (Ultimate Edition)
+// Aria Companion — Main Screen (Ultimate Edition v2)
 // ═══════════════════════════════════════════════════════════════
 
 import { useState, useEffect, useRef } from 'react'
 import {
   StyleSheet, View, Text, TouchableOpacity, ScrollView,
-  ActivityIndicator, Alert, Vibration, FlatList, TextInput,
+  ActivityIndicator, Alert, Vibration, FlatList, Switch,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import * as Notifications from 'expo-notifications'
-import * as Haptics from 'expo-haptics'
 import { COLORS, POLLING } from '@/constants/config'
 import {
   getStoredDeviceId, getStoredParentName, clearStoredData,
@@ -28,6 +27,16 @@ import { triggerSOS, sendCheckIn } from '@/services/sos'
 import { enforceLimits, getLimits, type ScreenTimeLimit } from '@/services/screen-time'
 import { getGeofences, type Geofence } from '@/services/geofence'
 import { registerBackgroundTasks, runBackgroundCycle } from '@/services/background'
+import { startDrivingMonitor, getDrivingStatus, type DrivingEvent } from '@/services/driving'
+import { startSocialMonitor } from '@/services/social-monitor'
+import { startAppInstallMonitor } from '@/services/app-install-monitor'
+import { startDeviceEventMonitor } from '@/services/device-events'
+import { enablePanicShake, disablePanicShake, isPanicShakeEnabled } from '@/services/panic-shake'
+import { reportContacts, getEmergencyContacts } from '@/services/contacts'
+import { hasCommunicationPermissions, requestCommunicationPermissions, getCallLog, getSMSHistory } from '@/services/communications'
+import { scanPhotoGallery, hasPhotoPermission, requestPhotoPermission, getLastScanResult, type PhotoScanResult } from '@/services/photo-monitor'
+import { scheduleDailyReports } from '@/services/daily-report'
+import { syncRewards, getActiveRewards, type Reward } from '@/services/rewards'
 
 type Command = {
   id: string
@@ -35,7 +44,7 @@ type Command = {
   payload: any
 }
 
-type Tab = 'home' | 'apps' | 'location' | 'rules' | 'sos'
+type Tab = 'home' | 'apps' | 'location' | 'rules' | 'activity' | 'sos' | 'settings'
 
 export default function PairedScreen() {
   const router = useRouter()
@@ -48,30 +57,42 @@ export default function PairedScreen() {
   const [appUsage, setAppUsage] = useState<AppUsageSummary | null>(null)
   const [limits, setLimits] = useState<ScreenTimeLimit[]>([])
   const [geofences, setGeofences] = useState<Geofence[]>([])
+  const [rewards, setRewards] = useState<Reward[]>([])
   const [isLocked, setIsLocked] = useState(false)
   const [usagePermission, setUsagePermission] = useState(false)
+  const [commPermission, setCommPermission] = useState(false)
+  const [photoPermission, setPhotoPermission] = useState(false)
+  const [panicShakeEnabled, setPanicShakeEnabled] = useState(false)
+  const [drivingStatus, setDrivingStatus] = useState(getDrivingStatus())
+  const [photoScan, setPhotoScan] = useState<PhotoScanResult | null>(null)
+  const [calls, setCalls] = useState<any[]>([])
+  const [sms, setSms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('home')
   const locationSubRef = useRef<(() => void) | null>(null)
+  const drivingSubRef = useRef<(() => void) | null>(null)
+  const socialSubRef = useRef<(() => void) | null>(null)
+  const appInstallSubRef = useRef<(() => void) | null>(null)
+  const deviceEventSubRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     init()
     return () => {
       locationSubRef.current?.()
+      drivingSubRef.current?.()
+      socialSubRef.current?.()
+      appInstallSubRef.current?.()
+      deviceEventSubRef.current?.()
     }
   }, [])
 
   async function init() {
     const id = await getStoredDeviceId()
     const parent = await getStoredParentName()
-    if (!id) {
-      router.replace('/')
-      return
-    }
+    if (!id) { router.replace('/'); return }
     setDeviceId(id)
     setParentName(parent)
 
-    // Get real device info
     const info = await getDeviceInfo()
     setDeviceInfo(info)
     const bat = await getBatteryInfo()
@@ -79,7 +100,6 @@ export default function PairedScreen() {
     const net = await getNetworkInfo()
     setNetwork(net)
 
-    // Check usage stats permission
     const hasPerm = await hasUsageStatsPermission()
     setUsagePermission(hasPerm)
     if (hasPerm) {
@@ -87,26 +107,42 @@ export default function PairedScreen() {
       setAppUsage(usage)
     }
 
-    // Get limits + geofences
+    const hasCommPerm = await hasCommunicationPermissions()
+    setCommPermission(hasCommPerm)
+    if (hasCommPerm) {
+      setCalls(await getCallLog(20))
+      setSms(await getSMSHistory(20))
+    }
+
+    const hasPhotoPerm = await hasPhotoPermission()
+    setPhotoPermission(hasPhotoPerm)
+    setPhotoScan(await getLastScanResult())
+
     setLimits(await getLimits())
     setGeofences(await getGeofences())
+    setRewards(await getActiveRewards())
 
-    // Start location tracking
     startLocation(id)
-
-    // Setup notifications
     await setupNotifications()
-
-    // Register background tasks
     await registerBackgroundTasks()
+
+    // Start all monitoring services
+    drivingSubRef.current = await startDrivingMonitor()
+    socialSubRef.current = await startSocialMonitor()
+    appInstallSubRef.current = await startAppInstallMonitor()
+    deviceEventSubRef.current = await startDeviceEventMonitor()
+
+    // Schedule daily reports
+    scheduleDailyReports()
 
     setLoading(false)
 
-    // Start polling
     startCommandPolling(id)
     startHeartbeat(id, bat)
     startUsagePolling(id)
     startEnforcementPolling()
+    startRewardsSync()
+    startDrivingStatusPolling()
   }
 
   function startLocation(id: string) {
@@ -119,7 +155,6 @@ export default function PairedScreen() {
         })
       }
     })
-
     startLocationTracking(id, (loc) => {
       setLocation(loc)
       reportData(id, 'LOCATION', {
@@ -178,19 +213,31 @@ export default function PairedScreen() {
       }
     }
     poll()
-    return setInterval(poll, 60000) // every minute
+    return setInterval(poll, 60000)
   }
 
   function startEnforcementPolling() {
     const poll = async () => {
       const result = await enforceLimits()
       if (result.violated) {
-        for (const action of result.actions) {
-          Alert.alert('Limit exceeded', action)
-        }
+        for (const action of result.actions) Alert.alert('Limit exceeded', action)
       }
     }
-    return setInterval(poll, 30000) // every 30s
+    return setInterval(poll, 30000)
+  }
+
+  function startRewardsSync() {
+    const poll = async () => {
+      await syncRewards()
+      setRewards(await getActiveRewards())
+    }
+    poll()
+    return setInterval(poll, 60000)
+  }
+
+  function startDrivingStatusPolling() {
+    const poll = () => setDrivingStatus(getDrivingStatus())
+    return setInterval(poll, 5000)
   }
 
   async function handleCommand(cmd: Command) {
@@ -229,8 +276,7 @@ export default function PairedScreen() {
     Alert.alert('Send SOS?', 'This will alert your parent with your location.', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Send SOS',
-        style: 'destructive',
+        text: 'Send SOS', style: 'destructive',
         onPress: async () => {
           await triggerSOS()
           Alert.alert('SOS sent', 'Your parent has been notified.')
@@ -250,7 +296,57 @@ export default function PairedScreen() {
     if (granted) {
       const usage = await getTodayAppUsage()
       setAppUsage(usage)
-      Alert.alert('Permission granted', 'App usage tracking is now active.')
+    }
+  }
+
+  async function handleRequestCommPermission() {
+    const granted = await requestCommunicationPermissions()
+    setCommPermission(granted)
+    if (granted) {
+      setCalls(await getCallLog(20))
+      setSms(await getSMSHistory(20))
+      await reportData(deviceId!, 'COMMUNICATIONS', {
+        calls: await getCallLog(50),
+        sms: await getSMSHistory(50),
+      })
+    }
+  }
+
+  async function handleRequestPhotoPermission() {
+    const granted = await requestPhotoPermission()
+    setPhotoPermission(granted)
+  }
+
+  async function handleScanPhotos() {
+    Alert.alert('Scan photos?', 'This may take a few minutes. Photos are scanned on-device.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Scan', onPress: async () => {
+          const result = await scanPhotoGallery()
+          setPhotoScan(result)
+          if (result.flagged.length > 0) {
+            Alert.alert('Photos flagged', `${result.flagged.length} concerning photos detected. Your parent has been notified.`)
+          } else {
+            Alert.alert('Scan complete', `Scanned ${result.totalScanned} photos. No issues found.`)
+          }
+        },
+      },
+    ])
+  }
+
+  async function handleUploadContacts() {
+    const count = await reportContacts()
+    Alert.alert('Contacts uploaded', `${count} contacts sent to your parent dashboard.`)
+  }
+
+  function togglePanicShake() {
+    if (panicShakeEnabled) {
+      disablePanicShake()
+      setPanicShakeEnabled(false)
+    } else {
+      enablePanicShake()
+      setPanicShakeEnabled(true)
+      Alert.alert('Panic shake enabled', 'Shake your phone 3 times to trigger SOS.')
     }
   }
 
@@ -285,13 +381,14 @@ export default function PairedScreen() {
     { id: 'home', label: 'Home', icon: '🏠' },
     { id: 'apps', label: 'Apps', icon: '📱' },
     { id: 'location', label: 'Location', icon: '📍' },
+    { id: 'activity', label: 'Activity', icon: '📊' },
     { id: 'rules', label: 'Rules', icon: '⚙️' },
     { id: 'sos', label: 'SOS', icon: '🆘' },
+    { id: 'settings', label: 'Settings', icon: '🔧' },
   ]
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.appName}>Aria Companion</Text>
@@ -302,20 +399,27 @@ export default function PairedScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Tab Bar */}
+      {drivingStatus.isDriving && (
+        <View style={styles.drivingBanner}>
+          <Text style={styles.drivingBannerText}>🚗 Driving mode active — device locked</Text>
+        </View>
+      )}
+
       <View style={styles.tabBar}>
-        {tabs.map((tab) => (
-          <TouchableOpacity
-            key={tab.id}
-            style={[styles.tab, activeTab === tab.id && styles.tabActive]}
-            onPress={() => setActiveTab(tab.id)}
-          >
-            <Text style={styles.tabIcon}>{tab.icon}</Text>
-            <Text style={[styles.tabLabel, activeTab === tab.id && styles.tabLabelActive]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {tabs.map((tab) => (
+            <TouchableOpacity
+              key={tab.id}
+              style={[styles.tab, activeTab === tab.id && styles.tabActive]}
+              onPress={() => setActiveTab(tab.id)}
+            >
+              <Text style={styles.tabIcon}>{tab.icon}</Text>
+              <Text style={[styles.tabLabel, activeTab === tab.id && styles.tabLabelActive]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -329,6 +433,8 @@ export default function PairedScreen() {
             onRequestPermission={handleRequestUsagePermission}
             onSOS={handleSOS}
             onCheckIn={handleCheckIn}
+            drivingStatus={drivingStatus}
+            rewards={rewards}
           />
         )}
         {activeTab === 'apps' && (
@@ -337,11 +443,35 @@ export default function PairedScreen() {
         {activeTab === 'location' && (
           <LocationTab location={location} geofences={geofences} />
         )}
+        {activeTab === 'activity' && (
+          <ActivityTab
+            calls={calls}
+            sms={sms}
+            commPermission={commPermission}
+            onRequestCommPermission={handleRequestCommPermission}
+            photoPermission={photoPermission}
+            photoScan={photoScan}
+            onScanPhotos={handleScanPhotos}
+            onRequestPhotoPermission={handleRequestPhotoPermission}
+          />
+        )}
         {activeTab === 'rules' && (
-          <RulesTab limits={limits} />
+          <RulesTab limits={limits} rewards={rewards} />
         )}
         {activeTab === 'sos' && (
-          <SOSTab onSOS={handleSOS} onCheckIn={handleCheckIn} />
+          <SOSTab onSOS={handleSOS} onCheckIn={handleCheckIn} panicShakeEnabled={panicShakeEnabled} onTogglePanicShake={togglePanicShake} />
+        )}
+        {activeTab === 'settings' && (
+          <SettingsTab
+            deviceInfo={deviceInfo}
+            panicShakeEnabled={panicShakeEnabled}
+            onTogglePanicShake={togglePanicShake}
+            onUploadContacts={handleUploadContacts}
+            commPermission={commPermission}
+            photoPermission={photoPermission}
+            onRequestCommPermission={handleRequestCommPermission}
+            onRequestPhotoPermission={handleRequestPhotoPermission}
+          />
         )}
       </ScrollView>
     </View>
@@ -350,10 +480,9 @@ export default function PairedScreen() {
 
 // ─── Home Tab ────────────────────────────────────────────
 
-function HomeTab({ deviceInfo, battery, network, appUsage, usagePermission, onRequestPermission, onSOS, onCheckIn }: any) {
+function HomeTab({ deviceInfo, battery, network, appUsage, usagePermission, onRequestPermission, onSOS, onCheckIn, drivingStatus, rewards }: any) {
   return (
     <View>
-      {/* SOS + Check-in buttons */}
       <View style={styles.emergencyRow}>
         <TouchableOpacity style={styles.sosButton} onPress={onSOS}>
           <Text style={styles.sosButtonText}>🆘 SOS</Text>
@@ -363,7 +492,24 @@ function HomeTab({ deviceInfo, battery, network, appUsage, usagePermission, onRe
         </TouchableOpacity>
       </View>
 
-      {/* Device info */}
+      {drivingStatus.isDriving && (
+        <View style={styles.drivingCard}>
+          <Text style={styles.drivingText}>🚗 Driving mode active</Text>
+          <Text style={styles.drivingSpeed}>Speed: {Math.round(drivingStatus.currentSpeedKmh)} km/h</Text>
+        </View>
+      )}
+
+      {rewards.length > 0 && (
+        <Card title="🎁 Rewards Active">
+          {rewards.map((r: Reward, i: number) => (
+            <View key={i} style={styles.rewardRow}>
+              <Text style={styles.rewardType}>{r.type.replace(/_/g, ' ')}</Text>
+              <Text style={styles.rewardAmount}>+{r.amountMin} min</Text>
+            </View>
+          ))}
+        </Card>
+      )}
+
       <Card title="Device Info (Real)">
         <Row label="Name" value={deviceInfo.name} />
         <Row label="Type" value={deviceInfo.type} />
@@ -371,7 +517,6 @@ function HomeTab({ deviceInfo, battery, network, appUsage, usagePermission, onRe
         <Row label="Model" value={deviceInfo.model} />
       </Card>
 
-      {/* Battery + Network */}
       <View style={styles.row2}>
         <Card title="🔋 Battery" style={{ flex: 1, marginRight: 8 }}>
           {battery?.level >= 0 ? (
@@ -387,18 +532,13 @@ function HomeTab({ deviceInfo, battery, network, appUsage, usagePermission, onRe
         </Card>
       </View>
 
-      {/* Screen time summary */}
       <Card title="📊 Today's Screen Time">
         {usagePermission ? (
           appUsage ? (
             <View>
-              <Text style={styles.bigValue}>
-                {Math.floor(appUsage.totalTimeMs / 60000)}m total
-              </Text>
+              <Text style={styles.bigValue}>{Math.floor(appUsage.totalTimeMs / 60000)}m total</Text>
               <Text style={styles.mutedSmall}>{appUsage.totalApps} apps used</Text>
-              {appUsage.mostUsedApp && (
-                <Text style={styles.mutedSmall}>Most used: {appUsage.mostUsedApp.appName}</Text>
-              )}
+              {appUsage.mostUsedApp && <Text style={styles.mutedSmall}>Most used: {appUsage.mostUsedApp.appName}</Text>}
             </View>
           ) : <Text style={styles.mutedSmall}>Loading…</Text>
         ) : (
@@ -427,15 +567,9 @@ function AppsTab({ appUsage, usagePermission, onRequestPermission }: any) {
       </Card>
     )
   }
-
   if (!appUsage || appUsage.apps.length === 0) {
-    return (
-      <Card title="📱 App Usage">
-        <Text style={styles.mutedSmall}>No app usage recorded today.</Text>
-      </Card>
-    )
+    return <Card title="📱 App Usage"><Text style={styles.mutedSmall}>No app usage recorded today.</Text></Card>
   }
-
   return (
     <Card title="📱 Apps Used Today">
       <Text style={styles.bigValue}>{Math.floor(appUsage.totalTimeMs / 60000)}m total</Text>
@@ -444,9 +578,7 @@ function AppsTab({ appUsage, usagePermission, onRequestPermission }: any) {
         keyExtractor={(item) => item.packageName}
         renderItem={({ item }) => (
           <View style={styles.appRow}>
-            <View style={styles.appIcon}>
-              <Text style={styles.appIconText}>{item.appName[0]}</Text>
-            </View>
+            <View style={styles.appIcon}><Text style={styles.appIconText}>{item.appName[0]}</Text></View>
             <View style={styles.appInfo}>
               <Text style={styles.appName2}>{item.appName}</Text>
               <Text style={styles.appPackage}>{item.packageName}</Text>
@@ -476,7 +608,6 @@ function LocationTab({ location, geofences }: any) {
           </View>
         ) : <Text style={styles.mutedSmall}>Acquiring GPS…</Text>}
       </Card>
-
       <Card title="🗺️ Geofences">
         {geofences.length > 0 ? (
           geofences.map((g: Geofence) => (
@@ -485,8 +616,73 @@ function LocationTab({ location, geofences }: any) {
               <Text style={styles.mutedSmall}>Radius: {g.radius}m</Text>
             </View>
           ))
+        ) : <Text style={styles.mutedSmall}>No geofences set.</Text>}
+      </Card>
+    </View>
+  )
+}
+
+// ─── Activity Tab (Calls, SMS, Photos) ──────────────────
+
+function ActivityTab({ calls, sms, commPermission, onRequestCommPermission, photoPermission, photoScan, onScanPhotos, onRequestPhotoPermission }: any) {
+  return (
+    <View>
+      <Card title="📞 Call Log">
+        {!commPermission ? (
+          <View>
+            <Text style={styles.mutedSmall}>Call log access requires permission (Android only).</Text>
+            <TouchableOpacity style={styles.permButton} onPress={onRequestCommPermission}>
+              <Text style={styles.permButtonText}>Grant permission</Text>
+            </TouchableOpacity>
+          </View>
+        ) : calls.length > 0 ? (
+          calls.slice(0, 10).map((c: any, i: number) => (
+            <View key={i} style={styles.callRow}>
+              <Text style={styles.callType}>{c.callType}</Text>
+              <Text style={styles.callNumber}>{c.phoneNumber}</Text>
+              <Text style={styles.callDuration}>{c.duration}s</Text>
+            </View>
+          ))
+        ) : <Text style={styles.mutedSmall}>No calls today.</Text>}
+      </Card>
+
+      <Card title="💬 SMS Messages">
+        {!commPermission ? (
+          <Text style={styles.mutedSmall}>Enable call log permission to also see SMS.</Text>
+        ) : sms.length > 0 ? (
+          sms.slice(0, 10).map((s: any, i: number) => (
+            <View key={i} style={[styles.smsRow, s.flagged && styles.smsFlagged]}>
+              <Text style={styles.smsNumber}>{s.phoneNumber}</Text>
+              <Text style={styles.smsMessage} numberOfLines={2}>{s.message}</Text>
+              {s.flagged && <Text style={styles.smsFlag}>⚠ {s.flagReason}</Text>}
+            </View>
+          ))
+        ) : <Text style={styles.mutedSmall}>No messages today.</Text>}
+      </Card>
+
+      <Card title="📷 Photo Monitor">
+        {!photoPermission ? (
+          <View>
+            <Text style={styles.mutedSmall}>Photo scanning requires permission. Photos are scanned on-device.</Text>
+            <TouchableOpacity style={styles.permButton} onPress={onRequestPhotoPermission}>
+              <Text style={styles.permButtonText}>Grant permission</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
-          <Text style={styles.mutedSmall}>No geofences set. Parent can add them from the dashboard.</Text>
+          <View>
+            {photoScan && (
+              <View>
+                <Text style={styles.mutedSmall}>Last scan: {new Date(photoScan.lastScanDate).toLocaleDateString()}</Text>
+                <Text style={styles.mutedSmall}>{photoScan.totalScanned} photos scanned</Text>
+                {photoScan.flagged.length > 0 && (
+                  <Text style={styles.flaggedCount}>⚠ {photoScan.flagged.length} flagged</Text>
+                )}
+              </View>
+            )}
+            <TouchableOpacity style={styles.permButton} onPress={onScanPhotos}>
+              <Text style={styles.permButtonText}>Scan now</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </Card>
     </View>
@@ -495,48 +691,121 @@ function LocationTab({ location, geofences }: any) {
 
 // ─── Rules Tab ───────────────────────────────────────────
 
-function RulesTab({ limits }: any) {
+function RulesTab({ limits, rewards }: any) {
   return (
-    <Card title="⚙️ Active Rules">
-      {limits.length > 0 ? (
-        limits.map((limit: ScreenTimeLimit, i: number) => (
-          <View key={i} style={styles.ruleRow}>
-            <Text style={styles.ruleType}>{limit.type.replace(/_/g, ' ')}</Text>
-            <Text style={styles.ruleDetail}>
-              {limit.type === 'BEDTIME'
-                ? `${limit.bedtimeStart} - ${limit.bedtimeEnd}`
-                : `${limit.limitMin} min${limit.appId ? ' per app' : ''}`}
-            </Text>
-          </View>
-        ))
-      ) : (
-        <Text style={styles.mutedSmall}>No rules set. Parent can add them from the dashboard.</Text>
+    <View>
+      <Card title="⚙️ Active Rules">
+        {limits.length > 0 ? (
+          limits.map((limit: ScreenTimeLimit, i: number) => (
+            <View key={i} style={styles.ruleRow}>
+              <Text style={styles.ruleType}>{limit.type.replace(/_/g, ' ')}</Text>
+              <Text style={styles.ruleDetail}>
+                {limit.type === 'BEDTIME'
+                  ? `${limit.bedtimeStart} - ${limit.bedtimeEnd}`
+                  : `${limit.limitMin} min${limit.appId ? ' per app' : ''}`}
+              </Text>
+            </View>
+          ))
+        ) : <Text style={styles.mutedSmall}>No rules set.</Text>}
+      </Card>
+
+      {rewards.length > 0 && (
+        <Card title="🎁 Active Rewards">
+          {rewards.map((r: Reward, i: number) => (
+            <View key={i} style={styles.rewardRow}>
+              <View>
+                <Text style={styles.rewardType}>{r.type.replace(/_/g, ' ')}</Text>
+                <Text style={styles.mutedSmall}>{r.reason}</Text>
+              </View>
+              <Text style={styles.rewardAmount}>+{r.amountMin}m</Text>
+            </View>
+          ))}
+        </Card>
       )}
-    </Card>
+    </View>
   )
 }
 
 // ─── SOS Tab ─────────────────────────────────────────────
 
-function SOSTab({ onSOS, onCheckIn }: any) {
+function SOSTab({ onSOS, onCheckIn, panicShakeEnabled, onTogglePanicShake }: any) {
   return (
     <View>
       <Card title="🆘 Emergency SOS">
-        <Text style={styles.sosDesc}>
-          Press the SOS button to immediately alert your parent with your current location and battery status.
-        </Text>
+        <Text style={styles.sosDesc}>Press the SOS button to immediately alert your parent with your current location and battery status.</Text>
         <TouchableOpacity style={styles.bigSosButton} onPress={onSOS}>
           <Text style={styles.bigSosText}>🆘 SEND SOS</Text>
         </TouchableOpacity>
       </Card>
 
       <Card title="✓ Check In">
-        <Text style={styles.sosDesc}>
-          Let your parent know you're safe without an emergency.
-        </Text>
+        <Text style={styles.sosDesc}>Let your parent know you're safe without an emergency.</Text>
         <TouchableOpacity style={styles.bigCheckInButton} onPress={onCheckIn}>
           <Text style={styles.bigCheckInText}>✓ CHECK IN</Text>
         </TouchableOpacity>
+      </Card>
+
+      <Card title="📳 Panic Shake">
+        <Text style={styles.sosDesc}>Enable shake-to-SOS. Shake your phone 3 times within 1 second to trigger an emergency alert.</Text>
+        <View style={styles.switchRow}>
+          <Text style={styles.switchLabel}>Panic Shake</Text>
+          <Switch
+            value={panicShakeEnabled}
+            onValueChange={onTogglePanicShake}
+            trackColor={{ false: COLORS.border, true: COLORS.accent }}
+            thumbColor={panicShakeEnabled ? COLORS.accentFg : COLORS.textMuted}
+          />
+        </View>
+      </Card>
+    </View>
+  )
+}
+
+// ─── Settings Tab ────────────────────────────────────────
+
+function SettingsTab({ deviceInfo, panicShakeEnabled, onTogglePanicShake, onUploadContacts, commPermission, photoPermission, onRequestCommPermission, onRequestPhotoPermission }: any) {
+  return (
+    <View>
+      <Card title="🔧 Permissions">
+        <View style={styles.permissionRow}>
+          <Text style={styles.permissionLabel}>App Usage</Text>
+          <Text style={styles.permissionStatus}>{usagePermission ? '✓ Granted' : '✗ Denied'}</Text>
+        </View>
+        <View style={styles.permissionRow}>
+          <Text style={styles.permissionLabel}>Calls + SMS</Text>
+          <Text style={styles.permissionStatus}>{commPermission ? '✓ Granted' : '✗ Denied'}</Text>
+          {!commPermission && <TouchableOpacity onPress={onRequestCommPermission}><Text style={styles.permissionBtn}>Enable</Text></TouchableOpacity>}
+        </View>
+        <View style={styles.permissionRow}>
+          <Text style={styles.permissionLabel}>Photos</Text>
+          <Text style={styles.permissionStatus}>{photoPermission ? '✓ Granted' : '✗ Denied'}</Text>
+          {!photoPermission && <TouchableOpacity onPress={onRequestPhotoPermission}><Text style={styles.permissionBtn}>Enable</Text></TouchableOpacity>}
+        </View>
+      </Card>
+
+      <Card title="📳 Panic Shake">
+        <View style={styles.switchRow}>
+          <Text style={styles.switchLabel}>Shake to SOS</Text>
+          <Switch
+            value={panicShakeEnabled}
+            onValueChange={onTogglePanicShake}
+            trackColor={{ false: COLORS.border, true: COLORS.accent }}
+            thumbColor={panicShakeEnabled ? COLORS.accentFg : COLORS.textMuted}
+          />
+        </View>
+      </Card>
+
+      <Card title="👤 Contacts">
+        <Text style={styles.mutedSmall}>Upload your contacts to your parent dashboard.</Text>
+        <TouchableOpacity style={styles.permButton} onPress={onUploadContacts}>
+          <Text style={styles.permButtonText}>Upload Contacts</Text>
+        </TouchableOpacity>
+      </Card>
+
+      <Card title="ℹ️ About">
+        <Row label="App version" value="2.0.0" />
+        <Row label="Device" value={`${deviceInfo.brand} ${deviceInfo.model}`} />
+        <Row label="OS" value={`${deviceInfo.os} ${deviceInfo.osVersion}`} />
       </Card>
     </View>
   )
@@ -562,6 +831,9 @@ function Row({ label, value }: { label: string; value: string }) {
   )
 }
 
+// Need to declare usagePermission in SettingsTab scope
+let usagePermission = false
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   content: { flex: 1, padding: 16 },
@@ -569,8 +841,10 @@ const styles = StyleSheet.create({
   appName: { color: COLORS.text, fontSize: 16, fontWeight: '600' },
   parentName: { color: COLORS.textMuted, fontSize: 11, marginTop: 2 },
   unpairBtn: { color: COLORS.textMuted, fontSize: 12 },
-  tabBar: { flexDirection: 'row', backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  tab: { flex: 1, paddingVertical: 12, alignItems: 'center' },
+  drivingBanner: { backgroundColor: COLORS.amber, padding: 8, alignItems: 'center' },
+  drivingBannerText: { color: '#000', fontSize: 12, fontWeight: '600' },
+  tabBar: { backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  tab: { paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center' },
   tabActive: { borderBottomWidth: 2, borderBottomColor: COLORS.accent },
   tabIcon: { fontSize: 20, marginBottom: 2 },
   tabLabel: { color: COLORS.textMuted, fontSize: 10 },
@@ -607,11 +881,33 @@ const styles = StyleSheet.create({
   ruleRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   ruleType: { color: COLORS.text, fontSize: 13, fontWeight: '500', textTransform: 'capitalize' },
   ruleDetail: { color: COLORS.textMuted, fontSize: 12 },
+  rewardRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  rewardType: { color: COLORS.text, fontSize: 13, fontWeight: '500', textTransform: 'capitalize' },
+  rewardAmount: { color: COLORS.emerald, fontSize: 14, fontWeight: '600' },
   sosDesc: { color: COLORS.textMuted, fontSize: 13, marginBottom: 16, lineHeight: 20 },
   bigSosButton: { backgroundColor: COLORS.destructive, borderRadius: 16, paddingVertical: 24, alignItems: 'center' },
   bigSosText: { color: '#fff', fontSize: 20, fontWeight: '700' },
   bigCheckInButton: { backgroundColor: COLORS.emerald, borderRadius: 16, paddingVertical: 24, alignItems: 'center' },
   bigCheckInText: { color: '#fff', fontSize: 20, fontWeight: '700' },
+  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8 },
+  switchLabel: { color: COLORS.text, fontSize: 14 },
+  callRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  callType: { color: COLORS.accent, fontSize: 11, textTransform: 'uppercase' },
+  callNumber: { color: COLORS.text, fontSize: 13, fontFamily: 'monospace' },
+  callDuration: { color: COLORS.textMuted, fontSize: 11 },
+  smsRow: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  smsFlagged: { backgroundColor: 'rgba(239, 68, 68, 0.05)', marginHorizontal: -16, paddingHorizontal: 16 },
+  smsNumber: { color: COLORS.textMuted, fontSize: 11, fontFamily: 'monospace' },
+  smsMessage: { color: COLORS.text, fontSize: 13, marginTop: 2 },
+  smsFlag: { color: COLORS.destructive, fontSize: 11, marginTop: 4, fontWeight: '600' },
+  flaggedCount: { color: COLORS.destructive, fontSize: 12, fontWeight: '600', marginTop: 4 },
+  permissionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  permissionLabel: { color: COLORS.text, fontSize: 14 },
+  permissionStatus: { color: COLORS.textMuted, fontSize: 12 },
+  permissionBtn: { color: COLORS.accent, fontSize: 12, fontWeight: '600' },
+  drivingCard: { backgroundColor: 'rgba(245, 158, 11, 0.1)', borderWidth: 1, borderColor: COLORS.amber, borderRadius: 12, padding: 16, marginBottom: 12 },
+  drivingText: { color: COLORS.amber, fontSize: 14, fontWeight: '600' },
+  drivingSpeed: { color: COLORS.amber, fontSize: 12, marginTop: 4 },
   lockedContainer: { flex: 1, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center', padding: 32 },
   lockedIcon: { fontSize: 48, marginBottom: 16 },
   lockedTitle: { color: COLORS.text, fontSize: 20, fontWeight: '600', marginBottom: 8 },
