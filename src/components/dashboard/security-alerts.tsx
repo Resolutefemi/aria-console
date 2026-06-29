@@ -75,6 +75,17 @@ export function SecurityAlerts() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, acknowledgedBy: 'Ola Kperogi' }),
       })
+      // Record in audit log
+      await fetch('/api/audit-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: `alert.${status.toLowerCase()}`,
+          resource: 'security_alert',
+          resourceId: id,
+          metadata: { status, by: 'Ola Kperogi' },
+        }),
+      })
       refetch()
     } catch (e) {
       console.error('Failed to update alert:', e)
