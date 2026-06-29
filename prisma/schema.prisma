@@ -11,3 +11,43 @@ datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }
+
+/// A paired device in the voice-controlled smartphone system.
+model Device {
+  id        String   @id @default(cuid())
+  deviceId  String   @unique /// Human-readable ID like "D-001"
+  name      String
+  type      DeviceType
+  room      String
+  status    DeviceStatus @default(ONLINE)
+  battery   Int      @default(100) /// 0-100
+  signal    Int      @default(-60) /// dBm
+  ipAddress String?  @map("ip_address")
+  firmware  String?  /// e.g. "3.8.2"
+  lastSeenAt DateTime @default(now()) @map("last_seen_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  voiceCommands  VoiceCommand[]
+  energyReadings EnergyReading[]
+
+  @@map("devices")
+}
+
+enum DeviceType {
+  PHONE
+  SPEAKER
+  WATCH
+  TABLET
+  HEADPHONES
+  DISPLAY
+  THERMOSTAT
+  CAMERA
+}
+
+enum DeviceStatus {
+  ONLINE
+  IDLE
+  OFFLINE
+  CHARGING
+}
