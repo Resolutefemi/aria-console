@@ -89,3 +89,39 @@ model EnergyReading {
   @@index([recordedAt])
   @@map("energy_readings")
 }
+
+/// A security event that requires operator attention.
+model SecurityAlert {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  severity    AlertSeverity @default(INFO)
+  status      AlertStatus    @default(OPEN)
+  deviceId    String?
+  device      Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  metadata    String?  /// JSON-encoded additional context (SQLite has no JSON type)
+  triggeredAt DateTime @default(now()) @map("triggered_at")
+  acknowledgedAt DateTime? @map("acknowledged_at")
+  acknowledgedBy String?  @map("acknowledged_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([severity])
+  @@index([status])
+  @@index([triggeredAt])
+  @@map("security_alerts")
+}
+
+enum AlertSeverity {
+  CRITICAL
+  WARNING
+  INFO
+  SUCCESS
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  DISMISSED
+}
