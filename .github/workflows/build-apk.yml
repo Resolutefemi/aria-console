@@ -57,13 +57,6 @@ jobs:
         run: |
           npx expo prebuild --platform android --clean --no-install
 
-      - name: Fix Gradle compatibility (Expo SDK 51 + Gradle 8)
-        working-directory: native-companion/android
-        run: |
-          # Downgrade Gradle wrapper to 7.6.3 (compatible with Expo SDK 51)
-          sed -i 's/distributionUrl=.*/distributionUrl=https\\:\/\/services.gradle.org\/distributions\/gradle-7.6.3-bin.zip/' gradle/wrapper/gradle-wrapper.properties
-          cat gradle/wrapper/gradle-wrapper.properties
-
       - name: Generate keystore for signing
         working-directory: native-companion/android
         run: |
