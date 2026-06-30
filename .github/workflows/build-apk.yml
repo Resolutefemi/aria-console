@@ -90,6 +90,15 @@ jobs:
           android.buildTypes.release.signingConfig = android.signingConfigs.release
           GRADLE_EOF
 
+          # Disable CMake / NDK builds (not needed for JS-only app)
+          cat >> gradle.properties << 'PROPS_EOF'
+          android.enableCMakeRelWithDebInfo=false
+          reactNativeArchitectures=armeabi-v7a,arm64-v8a,x86,x86_64
+          PROPS_EOF
+
+          # Remove CMake from build.gradle
+          sed -i 's/externalNativeBuild//g' app/build.gradle || true
+
       - name: Build release APK
         working-directory: native-companion/android
         run: |

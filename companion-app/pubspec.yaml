@@ -1,0 +1,61 @@
+name: aria_companion
+description: Aria Console companion app — real device monitoring for parental controls.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # HTTP client for API calls
+  http: ^1.2.0
+
+  # Local storage (paired device ID, etc.)
+  shared_preferences: ^2.2.2
+
+  # Location tracking
+  geolocator: ^11.0.0
+
+  # Background location
+  flutter_background_geolocation: ^4.14.0
+
+  # Battery level
+  battery_plus: ^5.0.2
+
+  # Device info
+  device_info_plus: ^10.1.0
+
+  # App usage stats (Android)
+  app_usage: ^3.0.0
+
+  # Installed apps
+  device_apps: ^2.2.0
+
+  # Notifications
+  flutter_local_notifications: ^17.0.0
+
+  # Push notifications
+  firebase_messaging: ^14.7.0
+
+  # Background service
+  flutter_background_service: ^5.0.0
+
+  # Permissions
+  permission_handler: ^11.2.0
+
+  # Material icons
+  cupertino_icons: ^1.0.6
+
+  # State management
+  provider: ^6.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
