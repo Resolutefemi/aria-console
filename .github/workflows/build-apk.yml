@@ -45,6 +45,7 @@ jobs:
         working-directory: native-companion
         run: |
           npm install --legacy-peer-deps
+          npx expo install --fix --legacy-peer-deps
 
       - name: Setup Expo
         working-directory: native-companion
