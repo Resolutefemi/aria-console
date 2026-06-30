@@ -10,7 +10,9 @@ import {
   Settings,
   HelpCircle,
   ChevronRight,
+  Download,
 } from 'lucide-react'
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
 type NavItem = {
@@ -125,7 +127,15 @@ export function Sidebar() {
       </nav>
 
       {/* System status footer */}
-      <div className="border-t border-border p-3">
+      <div className="border-t border-border p-3 space-y-2">
+        <Link
+          href="/download"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-md bg-accent text-accent-foreground text-xs font-medium hover:bg-accent/90 transition-colors"
+        >
+          <Download className="w-3.5 h-3.5" />
+          Download Companion App
+        </Link>
+
         <div className="rounded-md border border-border bg-card p-3 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground">System</span>

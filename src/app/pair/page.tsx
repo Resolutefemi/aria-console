@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/auth/auth-provider'
-import { Smartphone, Copy, Check, Loader2, ArrowLeft } from 'lucide-react'
+import { Smartphone, Copy, Check, Loader2, ArrowLeft, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 
@@ -172,6 +172,14 @@ export default function PairPage() {
                 className="w-full"
               >
                 Open companion app →
+              </Button>
+              <Button
+                variant="default"
+                onClick={() => router.push('/download')}
+                className="w-full"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download Android APK
               </Button>
               <Button
                 variant="ghost"
