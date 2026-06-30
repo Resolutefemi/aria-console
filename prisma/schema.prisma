@@ -52,6 +52,14 @@ enum DeviceType {
   DISPLAY
   THERMOSTAT
   CAMERA
+  LIGHT
+  LOCK
+  PLUG
+  TV
+  DOORBELL
+  GARAGE
+  VACUUM
+  FRIDGE
 }
 
 enum DeviceStatus {
@@ -343,6 +351,20 @@ enum DeviceCommandType {
   REQUEST_SCREENSHOT
   SEND_MESSAGE
   RING_DEVICE
+  // Smart device commands
+  TURN_ON
+  TURN_OFF
+  SET_TEMPERATURE
+  SET_BRIGHTNESS
+  SET_VOLUME
+  PLAY_MEDIA
+  PAUSE_MEDIA
+  STOP_MEDIA
+  SHOW_CAMERA_FEED
+  START_VACUUM
+  STOP_VACUUM
+  OPEN_GARAGE
+  CLOSE_GARAGE
 }
 
 enum DeviceCommandStatus {

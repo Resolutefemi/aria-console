@@ -3,6 +3,8 @@
  * Interprets user speech and returns an action + response.
  */
 
+import { parseSmartDeviceCommand, buildSmartDeviceResponse } from './smart-device-commands'
+
 export type VoiceAction =
   | { type: 'SUMMARY' }                              // "what's happening"
   | { type: 'DEVICE_STATUS' }                        // "how are my devices"
@@ -15,6 +17,10 @@ export type VoiceAction =
   | { type: 'RING_DEVICE'; name?: string }           // "ring my phone"
   | { type: 'BATTERY' }                              // "battery level"
   | { type: 'HELP' }                                 // "help"
+  | { type: 'SMART_DEVICE'; action: any }            // "turn on the lights"
+  | { type: 'VOICE_MODE_TOGGLE' }                    // "voice mode on/off"
+  | { type: 'READ_SCREEN' }                          // "read the screen"
+  | { type: 'NAVIGATE'; target: string }             // "go to devices"
   | { type: 'UNKNOWN'; transcript: string }
 
 /**
@@ -27,6 +33,31 @@ export function parseVoiceCommand(transcript: string): VoiceAction {
   // Help
   if (/\b(help|what can you do|commands)\b/.test(t)) {
     return { type: 'HELP' }
+  }
+
+  // Voice mode toggle (for blind users)
+  if (/\b(voice mode (on|off)|turn (on|off) voice mode|enable voice mode|disable voice mode)\b/.test(t)) {
+    return { type: 'VOICE_MODE_TOGGLE' }
+  }
+
+  // Read screen (for blind users)
+  if (/\b(read (the )?screen|what'?s on (the )?screen|read (this )?(page|out loud)|describe (the )?screen)\b/.test(t)) {
+    return { type: 'READ_SCREEN' }
+  }
+
+  // Navigation by voice (for blind users)
+  if (/\b(go to|navigate to|open|show me)\b/.test(t)) {
+    if (/\bdevice/.test(t)) return { type: 'NAVIGATE', target: 'devices' }
+    if (/\bvoice/.test(t)) return { type: 'NAVIGATE', target: 'voice' }
+    if (/\benergy|power/.test(t)) return { type: 'NAVIGATE', target: 'energy' }
+    if (/\bsecurity|alert/.test(t)) return { type: 'NAVIGATE', target: 'security' }
+    if (/\bpair|pairing/.test(t)) return { type: 'NAVIGATE', target: 'pair' }
+  }
+
+  // Smart device commands (lights, thermostat, locks, cameras, etc.)
+  const smartAction = parseSmartDeviceCommand(t)
+  if (smartAction) {
+    return { type: 'SMART_DEVICE', action: smartAction }
   }
 
   // Lock device
@@ -93,7 +124,19 @@ export function buildVoiceResponse(action: VoiceAction, data: {
 
   switch (action.type) {
     case 'HELP':
-      return 'You can ask me: what\'s happening, where is my device, how much screen time, any alerts, lock the device, ring my phone, or battery level.'
+      return 'You can ask me: what\'s happening, where is my device, screen time, any alerts, lock the device, ring my phone, battery level. You can also control smart devices: turn on the lights, set thermostat to 72, lock the front door, show the backyard camera, play music, start the vacuum. For blind users: say "read the screen" or "go to devices".'
+
+    case 'VOICE_MODE_TOGGLE':
+      return 'Voice mode toggled. All screen changes will now be announced out loud.'
+
+    case 'READ_SCREEN':
+      return readScreenForBlind(data)
+
+    case 'NAVIGATE':
+      return `Navigating to ${action.target}.`
+
+    case 'SMART_DEVICE':
+      return buildSmartDeviceResponse(action.action, { success: true })
 
     case 'SUMMARY': {
       if (devices.length === 0) {
@@ -165,4 +208,47 @@ export function buildVoiceResponse(action: VoiceAction, data: {
     default:
       return `I didn't understand that. You can ask: what's happening, where is my device, screen time, alerts, or lock the device.`
   }
+}
+
+/**
+ * Read the screen for blind users.
+ * Describes what's currently visible on the dashboard.
+ */
+function readScreenForBlind(data: {
+  devices: any[]
+  activity?: any
+  alerts?: any[]
+  stats?: any
+}): string {
+  const parts: string[] = []
+
+  parts.push('Aria Console dashboard.')
+
+  if (data.devices.length === 0) {
+    parts.push('No paired devices. Open the pair page to link a device.')
+  } else {
+    parts.push(`You have ${data.devices.length} paired device${data.devices.length === 1 ? '' : 's'}.`)
+    for (const d of data.devices.slice(0, 5)) {
+      parts.push(`${d.name}: ${d.status.toLowerCase()}, ${d.battery}% battery.`)
+    }
+  }
+
+  if (data.alerts && data.alerts.length > 0) {
+    const open = data.alerts.filter((a) => a.status === 'OPEN')
+    if (open.length > 0) {
+      parts.push(`${open.length} open alert${open.length === 1 ? '' : 's'}.`)
+      parts.push(`Most recent: ${open[0].title}.`)
+    }
+  }
+
+  if (data.activity) {
+    parts.push(`Screen time today: ${data.activity.totalScreenTimeMin} minutes.`)
+    if (data.activity.lastLocation) {
+      parts.push(`Last location: ${data.activity.lastLocation.address || 'unknown'}.`)
+    }
+  }
+
+  parts.push('Say a command, or say "help" for options.')
+
+  return parts.join(' ')
 }
