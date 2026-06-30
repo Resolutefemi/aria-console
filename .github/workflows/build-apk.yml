@@ -94,7 +94,7 @@ jobs:
         working-directory: native-companion/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon -x lintVitalRelease
+          ./gradlew assembleRelease --no-daemon -x lintVitalRelease -x configureCMakeRelWithDebInfo -x buildCMakeRelWithDebInfo
 
       - name: Rename APK
         working-directory: native-companion/android
