@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft, Smartphone, Battery, Wifi, MapPin, Clock, Globe,
   Lock, Unlock, Bell, MessageSquare, RefreshCw, Loader2,
-  Shield, Ban, Timer, Bedtime, Filter, Plus, Trash2, CheckCircle2,
+  Shield, Ban, Timer, Moon, Filter, Plus, Trash2, CheckCircle2,
   type LucideIcon,
 } from 'lucide-react'
 import { useApi } from '@/hooks/use-api'
@@ -728,7 +728,7 @@ function RulesTab({
     APP_BLOCK: Ban,
     APP_TIME_LIMIT: Timer,
     SCREEN_TIME_LIMIT: Clock,
-    BEDTIME: Bedtime,
+    BEDTIME: Moon,
     CONTENT_FILTER: Filter,
     LOCATION_GEOFENCE: MapPin,
   }

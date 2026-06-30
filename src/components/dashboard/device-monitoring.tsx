@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Smartphone, Speaker, Watch, Tablet, Headphones, Monitor,
   Wifi, Battery, BatteryLow, BatteryWarning, MoreHorizontal, RefreshCw, Search,
@@ -83,6 +84,7 @@ const STATUS_FILTERS: { id: 'ALL' | DeviceStatus; label: string }[] = [
 ]
 
 export function DeviceMonitoring() {
+  const router = useRouter()
   const { data, loading, error, refetch } = useApi<{ devices: Device[] }>('/api/devices?paired=true', { refetchInterval: 15000 })
   const [statusFilter, setStatusFilter] = useState<'ALL' | DeviceStatus>('ALL')
   const [search, setSearch] = useState('')

@@ -55,7 +55,7 @@ export function useApi<T>(
         const headers: Record<string, string> = {}
         if (token) headers['Authorization'] = `Bearer ${token}`
 
-        const res = await fetch(url, {
+        const res = await fetch(url as string, {
           signal: controller.signal,
           headers,
         })

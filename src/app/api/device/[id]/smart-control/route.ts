@@ -28,7 +28,7 @@ export async function POST(
   try {
     const { id } = await params
     const body = await request.json()
-    const { deviceType, deviceName, room, command, params: cmdParams } = body
+    const { deviceType, deviceName, room, command, params: cmdParams, sentBy } = body
 
     // Verify device exists
     const device = await db.device.findUnique({ where: { id } })
@@ -39,11 +39,12 @@ export async function POST(
     // Build the command record
     const commandType = mapSmartCommandToDeviceCommand(deviceType, command)
 
-    // Create a device command
+    // Create a device command (sentBy is required — use 'voice' if not provided)
     const deviceCommand = await db.deviceCommand.create({
       data: {
         deviceId: device.id,
-        type: commandType,
+        type: commandType as any,
+        sentBy: sentBy || 'voice-assistant',
         payload: {
           deviceType,
           deviceName,
