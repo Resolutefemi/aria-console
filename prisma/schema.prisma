@@ -1,6 +1,6 @@
 // Aria Console — Prisma schema
-// Local development uses SQLite; production uses Supabase Postgres.
-// To switch: change the provider to "postgresql" and update DATABASE_URL.
+// Production database: Supabase Postgres
+// Connection: pooled (port 6543) for runtime, direct (port 5432) for migrations
 
 generator client {
   provider = "prisma-client-js"
@@ -8,29 +8,37 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 /// A paired device in the voice-controlled smartphone system.
 model Device {
-  id        String   @id @default(cuid())
-  deviceId  String   @unique /// Human-readable ID like "D-001"
-  name      String
-  type      DeviceType
-  room      String
-  status    DeviceStatus @default(ONLINE)
-  battery   Int      @default(100) /// 0-100
-  signal    Int      @default(-60) /// dBm
-  ipAddress String?  @map("ip_address")
-  firmware  String?  /// e.g. "3.8.2"
-  lastSeenAt DateTime @default(now()) @map("last_seen_at")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(cuid())
+  deviceId    String   @unique @map("device_id") /// Human-readable ID like "D-001"
+  name        String
+  type        DeviceType
+  room        String
+  status      DeviceStatus @default(ONLINE)
+  battery     Int      @default(100) /// 0-100
+  signal      Int      @default(-60) /// dBm
+  ipAddress   String?  @map("ip_address")
+  firmware    String?  /// e.g. "3.8.2"
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   voiceCommands  VoiceCommand[]
   energyReadings EnergyReading[]
   securityAlerts SecurityAlert[]
+  pairings       DevicePairing[]
+  apps           DeviceApp[]
+  screenTimeSessions ScreenTimeSession[]
+  locationPings  LocationPing[]
+  webHistory     WebHistoryEntry[]
+  parentalRules  ParentalRule[]
+  commands       DeviceCommand[]
 
   @@map("devices")
 }
@@ -44,6 +52,14 @@ enum DeviceType {
   DISPLAY
   THERMOSTAT
   CAMERA
+  LIGHT
+  LOCK
+  PLUG
+  TV
+  DOORBELL
+  GARAGE
+  VACUUM
+  FRIDGE
 }
 
 enum DeviceStatus {
@@ -60,7 +76,7 @@ model VoiceCommand {
   intent     String   /// e.g. "lights.on", "alarm.set"
   confidence Float    /// 0.0 to 1.0
   status     CommandStatus @default(SUCCESS)
-  deviceId   String
+  deviceId   String   @map("device_id")
   device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
   issuedAt   DateTime @default(now()) @map("issued_at")
   createdAt  DateTime @default(now()) @map("created_at")
@@ -79,9 +95,9 @@ enum CommandStatus {
 /// An energy consumption reading from a device at a specific timestamp.
 model EnergyReading {
   id          String   @id @default(cuid())
-  deviceId    String
+  deviceId    String   @map("device_id")
   device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  kilowatts   Float    @map("kilowatts") /// Instantaneous power in kW
+  kilowatts   Float    /// Instantaneous power in kW
   wattHours   Float    @map("watt_hours") /// Energy consumed in this interval (Wh)
   recordedAt  DateTime @default(now()) @map("recorded_at")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -98,9 +114,9 @@ model SecurityAlert {
   description String
   severity    AlertSeverity @default(INFO)
   status      AlertStatus    @default(OPEN)
-  deviceId    String?
+  deviceId    String?  @map("device_id")
   device      Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
-  metadata    String?  /// JSON-encoded additional context (SQLite has no JSON type)
+  metadata    Json?    /// Additional context (Postgres jsonb)
   triggeredAt DateTime @default(now()) @map("triggered_at")
   acknowledgedAt DateTime? @map("acknowledged_at")
   acknowledgedBy String?  @map("acknowledged_by")
@@ -140,6 +156,9 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   auditLogs AuditLog[]
+  pairings  DevicePairing[] @relation("ParentPairings")
+  parentalRules ParentalRule[] @relation("ParentalRules")
+  deviceCommands DeviceCommand[] @relation("DeviceCommands")
 
   @@map("users")
 }
@@ -153,19 +172,205 @@ enum UserRole {
 
 /// An immutable record of operator actions for compliance and debugging.
 model AuditLog {
-  id        String   @id @default(cuid())
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  action    String   /// e.g. "alert.acknowledge", "device.refresh"
-  resource  String   /// e.g. "security_alert", "device"
-  resourceId String? @map("resource_id")
-  metadata  String?  /// JSON-encoded context
-  ipAddress String?  @map("ip_address")
-  userAgent String?  @map("user_agent")
-  createdAt DateTime @default(now()) @map("created_at")
+  id         String   @id @default(cuid())
+  userId     String?  @map("user_id")
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String   /// e.g. "alert.acknowledge", "device.refresh"
+  resource   String   /// e.g. "security_alert", "device"
+  resourceId String?  @map("resource_id")
+  metadata   Json?    /// JSON-encoded context (Postgres jsonb)
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   @@index([userId])
   @@index([action])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ════════════════════════════════════════════════════════════════════
+// REAL DEVICE MONITORING MODELS
+// ════════════════════════════════════════════════════════════════════
+// These models support real-time device monitoring and parental controls.
+// The companion app (native iOS/Android or the web simulator at /companion)
+// reports data to /api/device/report, which writes to these tables.
+// The parent dashboard reads from them via /api/device/[id]/activity.
+
+/// Pairing session — links a child device to a parent account.
+/// Parent generates a code, child enters it in the companion app.
+model DevicePairing {
+  id            String    @id @default(cuid())
+  code          String    @unique @default(cuid()) /// 6-char pairing code shown to parent
+  shortCode     String    @unique @map("short_code") /// 6-digit code the child enters
+  parentId      String    @map("parent_id") /// User ID of the parent
+  parent        User      @relation("ParentPairings", fields: [parentId], references: [id], onDelete: Cascade)
+  deviceId      String?   @map("device_id") /// Set when child pairs
+  device        Device?   @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  status        PairingStatus @default(PENDING)
+  expiresAt     DateTime  @map("expires_at") /// 15-minute expiry
+  pairedAt      DateTime? @map("paired_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([parentId])
+  @@index([shortCode])
+  @@map("device_pairings")
+}
+
+enum PairingStatus {
+  PENDING
+  PAIRED
+  EXPIRED
+  REVOKED
+}
+
+/// An app installed on a paired device, with usage tracking.
+model DeviceApp {
+  id          String   @id @default(cuid())
+  deviceId    String   @map("device_id")
+  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  packageName String   @map("package_name") /// e.g. com.instagram.android
+  appName     String   @map("app_name") /// Display name: "Instagram"
+  category    String   @default("Other") /// Social, Games, Education, etc.
+  iconUrl     String?  @map("icon_url")
+  isBlocked   Boolean  @default(false) @map("is_blocked")
+  dailyLimitMin Int?   @map("daily_limit_min") /// Parent-set daily limit in minutes
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([deviceId, packageName])
+  @@index([deviceId])
+  @@map("device_apps")
+}
+
+/// A screen-time session — when an app was used (foreground time).
+/// The companion app reports these as the user switches between apps.
+model ScreenTimeSession {
+  id          String   @id @default(cuid())
+  deviceId    String   @map("device_id")
+  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  appPackage  String   @map("app_package")
+  appName     String   @map("app_name")
+  startedAt   DateTime @map("started_at")
+  endedAt     DateTime? @map("ended_at") /// null = still in foreground
+  durationSec Int?     @map("duration_sec") /// Computed when session ends
+
+  @@index([deviceId, startedAt])
+  @@index([appPackage])
+  @@map("screen_time_sessions")
+}
+
+/// A location ping from the companion app.
+model LocationPing {
+  id         String   @id @default(cuid())
+  deviceId   String   @map("device_id")
+  device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  latitude   Float
+  longitude  Float
+  accuracy   Float?    /// meters
+  speed      Float?    /// m/s
+  heading    Float?    /// degrees
+  address    String?   /// Reverse-geocoded address
+  battery    Int?      /// Device battery at time of ping
+  recordedAt DateTime @default(now()) @map("recorded_at")
+
+  @@index([deviceId, recordedAt])
+  @@map("location_pings")
+}
+
+/// A web history entry from the companion app's in-app browser.
+model WebHistoryEntry {
+  id         String   @id @default(cuid())
+  deviceId   String   @map("device_id")
+  device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  url        String
+  title      String?
+  category   String?  /// Social, News, Education, Adult, etc.
+  isBlocked  Boolean  @default(false) @map("is_blocked")
+  visitedAt  DateTime @default(now()) @map("visited_at")
+
+  @@index([deviceId, visitedAt])
+  @@map("web_history")
+}
+
+/// A parental rule — time limits, app blocks, content filters.
+model ParentalRule {
+  id          String   @id @default(cuid())
+  deviceId    String   @map("device_id")
+  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  type        ParentalRuleType
+  config      Json     /// Rule-specific config (app package, time, etc.)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdBy   String   @map("created_by")
+  creator     User     @relation("ParentalRules", fields: [createdBy], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([deviceId])
+  @@index([type])
+  @@map("parental_rules")
+}
+
+enum ParentalRuleType {
+  APP_BLOCK         /// Block a specific app
+  APP_TIME_LIMIT    /// Daily time limit for an app
+  SCREEN_TIME_LIMIT /// Total daily screen time limit
+  BEDTIME           /// Lock device during specified hours
+  CONTENT_FILTER    /// Block websites by category
+  LOCATION_GEOFENCE /// Alert when device leaves area
+}
+
+/// A command sent from parent to child device (lock, unlock, etc.).
+/// Companion app polls /api/device/commands to receive these.
+model DeviceCommand {
+  id          String   @id @default(cuid())
+  deviceId    String   @map("device_id")
+  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  type        DeviceCommandType
+  payload     Json?    /// Command-specific data
+  status      DeviceCommandStatus @default(PENDING)
+  sentBy      String   @map("sent_by")
+  sender      User     @relation("DeviceCommands", fields: [sentBy], references: [id], onDelete: Cascade)
+  sentAt      DateTime @default(now()) @map("sent_at")
+  deliveredAt DateTime? @map("delivered_at")
+  executedAt  DateTime? @map("executed_at")
+  result      Json?    /// Result reported by companion app
+
+  @@index([deviceId, status])
+  @@index([sentAt])
+  @@map("device_commands")
+}
+
+enum DeviceCommandType {
+  LOCK_DEVICE
+  UNLOCK_DEVICE
+  BLOCK_APP
+  UNBLOCK_APP
+  SET_TIME_LIMIT
+  REQUEST_LOCATION
+  REQUEST_SCREENSHOT
+  SEND_MESSAGE
+  RING_DEVICE
+  // Smart device commands
+  TURN_ON
+  TURN_OFF
+  SET_TEMPERATURE
+  SET_BRIGHTNESS
+  SET_VOLUME
+  PLAY_MEDIA
+  PAUSE_MEDIA
+  STOP_MEDIA
+  SHOW_CAMERA_FEED
+  START_VACUUM
+  STOP_VACUUM
+  OPEN_GARAGE
+  CLOSE_GARAGE
+}
+
+enum DeviceCommandStatus {
+  PENDING
+  DELIVERED
+  EXECUTED
+  FAILED
+  EXPIRED
 }

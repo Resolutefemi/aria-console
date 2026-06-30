@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
         action,
         resource,
         resourceId,
-        metadata: metadata ? JSON.stringify(metadata) : null,
+        metadata: metadata ?? null,
         userId,
         ipAddress,
         userAgent,

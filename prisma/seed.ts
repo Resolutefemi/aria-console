@@ -1,216 +1,45 @@
 /**
- * Aria Console — Database seed script
+ * Aria Console — Database seed script (REAL DATA ONLY)
  *
  * Run with: bun run db:seed
  *
- * Populates the database with realistic-looking sample data:
- * - 8 devices (phones, speakers, watches, tablets, headphones)
- * - 7 voice commands across those devices
- * - 12 hours of energy readings (per device, hourly)
- * - 6 security alerts of varying severity
- * - 1 admin user
+ * This script does NOT create any mock data. It only:
+ * - Clears all existing data (for a fresh start)
+ *
+ * Real users are created automatically when they sign up via Supabase Auth
+ * (see /api/auth/sync). Real devices are created when paired via the
+ * companion app (see /api/pairing/verify). All other data (screen time,
+ * location, web history) is reported by real companion apps.
+ *
+ * The dashboard shows ONLY real data from real paired devices.
  */
 import { db } from '../src/lib/db'
 
 async function main() {
-  console.log('🌱 Seeding Aria Console database...')
+  console.log('🧹 Clearing all data from database (real data only mode)...')
 
-  // Clear existing data (order matters for FK constraints)
+  // Clear in dependency order (FK constraints)
   await db.auditLog.deleteMany()
+  await db.deviceCommand.deleteMany()
+  await db.parentalRule.deleteMany()
+  await db.webHistoryEntry.deleteMany()
+  await db.locationPing.deleteMany()
+  await db.screenTimeSession.deleteMany()
+  await db.deviceApp.deleteMany()
+  await db.devicePairing.deleteMany()
   await db.securityAlert.deleteMany()
   await db.energyReading.deleteMany()
   await db.voiceCommand.deleteMany()
   await db.device.deleteMany()
   await db.user.deleteMany()
-  console.log('  ✓ Cleared existing data')
 
-  // ─── User ──────────────────────────────────────────────
-  const admin = await db.user.create({
-    data: {
-      email: 'ola.kperogi@aria.example',
-      name: 'Ola Kperogi',
-      role: 'ADMIN',
-      lastLoginAt: new Date(),
-    },
-  })
-  console.log(`  ✓ Created admin user: ${admin.email}`)
-
-  // ─── Devices ──────────────────────────────────────────
-  const deviceData = [
-    { deviceId: 'D-001', name: "Ola's iPhone 15 Pro", type: 'PHONE', room: 'Personal', status: 'ONLINE', battery: 87, signal: -58, ipAddress: '10.0.1.24', firmware: '17.4.1' },
-    { deviceId: 'D-002', name: 'Living Room Speaker', type: 'SPEAKER', room: 'Living Room', status: 'ONLINE', battery: 100, signal: -42, ipAddress: '10.0.1.51', firmware: '4.2.1' },
-    { deviceId: 'D-003', name: 'Kitchen Display', type: 'DISPLAY', room: 'Kitchen', status: 'IDLE', battery: 64, signal: -71, ipAddress: '10.0.1.62', firmware: '4.2.1' },
-    { deviceId: 'D-004', name: 'Bedroom Hub', type: 'SPEAKER', room: 'Bedroom', status: 'CHARGING', battery: 42, signal: -55, ipAddress: '10.0.1.73', firmware: '3.8.2' },
-    { deviceId: 'D-005', name: 'Galaxy Watch6', type: 'WATCH', room: 'Personal', status: 'ONLINE', battery: 73, signal: -67, ipAddress: '10.0.1.88', firmware: '2.1.0' },
-    { deviceId: 'D-006', name: 'AirPods Pro', type: 'HEADPHONES', room: 'Personal', status: 'ONLINE', battery: 28, signal: -49, ipAddress: '10.0.1.91', firmware: '7B19' },
-    { deviceId: 'D-007', name: 'Office iPad', type: 'TABLET', room: 'Office', status: 'OFFLINE', battery: 12, signal: 0, ipAddress: '10.0.1.104', firmware: '17.4.1' },
-    { deviceId: 'D-008', name: 'Garage Speaker', type: 'SPEAKER', room: 'Garage', status: 'IDLE', battery: 91, signal: -84, ipAddress: '10.0.1.112', firmware: '4.1.7' },
-    { deviceId: 'D-009', name: 'Home Theater Soundbar', type: 'SPEAKER', room: 'Living Room', status: 'ONLINE', battery: 95, signal: -40, ipAddress: '10.0.1.121', firmware: '4.2.1' },
-    { deviceId: 'D-010', name: 'Nest Thermostat', type: 'THERMOSTAT', room: 'Hallway', status: 'ONLINE', battery: 100, signal: -52, ipAddress: '10.0.1.130', firmware: '6.2.0' },
-    { deviceId: 'D-011', name: 'Front Door Camera', type: 'CAMERA', room: 'Entrance', status: 'ONLINE', battery: 88, signal: -63, ipAddress: '10.0.1.140', firmware: '2.4.1' },
-    { deviceId: 'D-012', name: 'Backyard Camera', type: 'CAMERA', room: 'Backyard', status: 'IDLE', battery: 76, signal: -78, ipAddress: '10.0.1.141', firmware: '2.4.1' },
-    { deviceId: 'D-013', name: 'Garage Door Opener', type: 'DISPLAY', room: 'Garage', status: 'ONLINE', battery: 100, signal: -55, ipAddress: '10.0.1.150', firmware: '1.8.3' },
-    { deviceId: 'D-014', name: 'Smart Fridge', type: 'DISPLAY', room: 'Kitchen', status: 'ONLINE', battery: 100, signal: -48, ipAddress: '10.0.1.160', firmware: '9.1.2' },
-    { deviceId: 'D-015', name: 'Robot Vacuum', type: 'DISPLAY', room: 'Living Room', status: 'CHARGING', battery: 23, signal: -65, ipAddress: '10.0.1.170', firmware: '3.7.4' },
-    { deviceId: 'D-016', name: 'Smart Light Bulb — Bedroom', type: 'DISPLAY', room: 'Bedroom', status: 'ONLINE', battery: 100, signal: -50, ipAddress: '10.0.1.180', firmware: '2.1.0' },
-    { deviceId: 'D-017', name: 'Smart Light Bulb — Kitchen', type: 'DISPLAY', room: 'Kitchen', status: 'ONLINE', battery: 100, signal: -50, ipAddress: '10.0.1.181', firmware: '2.1.0' },
-    { deviceId: 'D-018', name: 'Smart Light Bulb — Living Room 1', type: 'DISPLAY', room: 'Living Room', status: 'ONLINE', battery: 100, signal: -45, ipAddress: '10.0.1.182', firmware: '2.1.0' },
-    { deviceId: 'D-019', name: 'Smart Light Bulb — Living Room 2', type: 'DISPLAY', room: 'Living Room', status: 'ONLINE', battery: 100, signal: -47, ipAddress: '10.0.1.183', firmware: '2.1.0' },
-    { deviceId: 'D-020', name: 'Smart Light Bulb — Bathroom', type: 'DISPLAY', room: 'Bathroom', status: 'OFFLINE', battery: 0, signal: 0, ipAddress: '10.0.1.184', firmware: '2.1.0' },
-    { deviceId: 'D-021', name: 'Doorbell Camera', type: 'CAMERA', room: 'Entrance', status: 'ONLINE', battery: 91, signal: -58, ipAddress: '10.0.1.190', firmware: '4.2.0' },
-    { deviceId: 'D-022', name: 'Window Sensor — Kitchen', type: 'DISPLAY', room: 'Kitchen', status: 'ONLINE', battery: 84, signal: -72, ipAddress: '10.0.1.200', firmware: '1.2.0' },
-    { deviceId: 'D-023', name: 'Window Sensor — Bedroom', type: 'DISPLAY', room: 'Bedroom', status: 'IDLE', battery: 67, signal: -75, ipAddress: '10.0.1.201', firmware: '1.2.0' },
-    { deviceId: 'D-024', name: 'Smoke Detector — Kitchen', type: 'DISPLAY', room: 'Kitchen', status: 'ONLINE', battery: 92, signal: -68, ipAddress: '10.0.1.210', firmware: '3.1.0' },
-    { deviceId: 'D-025', name: 'Smoke Detector — Hallway', type: 'DISPLAY', room: 'Hallway', status: 'ONLINE', battery: 89, signal: -62, ipAddress: '10.0.1.211', firmware: '3.1.0' },
-    { deviceId: 'D-026', name: 'Water Leak Sensor', type: 'DISPLAY', room: 'Bathroom', status: 'IDLE', battery: 78, signal: -80, ipAddress: '10.0.1.220', firmware: '1.0.4' },
-    { deviceId: 'D-027', name: 'Smart Plug — TV', type: 'DISPLAY', room: 'Living Room', status: 'ONLINE', battery: 100, signal: -42, ipAddress: '10.0.1.230', firmware: '2.3.1' },
-    { deviceId: 'D-028', name: 'Smart Plug — Heater', type: 'DISPLAY', room: 'Bedroom', status: 'ONLINE', battery: 100, signal: -52, ipAddress: '10.0.1.231', firmware: '2.3.1' },
-    { deviceId: 'D-029', name: 'Echo Dot — Office', type: 'SPEAKER', room: 'Office', status: 'IDLE', battery: 100, signal: -70, ipAddress: '10.0.1.240', firmware: '4.2.1' },
-    { deviceId: 'D-030', name: 'Pixel Watch 2', type: 'WATCH', room: 'Personal', status: 'ONLINE', battery: 65, signal: -69, ipAddress: '10.0.1.250', firmware: '1.0.5' },
-  ]
-
-  const devices = []
-  for (const d of deviceData) {
-    const device = await db.device.create({
-      data: {
-        ...d,
-        lastSeenAt: d.status === 'OFFLINE' ? new Date(Date.now() - 2 * 60 * 60 * 1000) : new Date(),
-      },
-    })
-    devices.push(device)
-  }
-  console.log(`  ✓ Created ${devices.length} devices`)
-
-  // ─── Voice commands ───────────────────────────────────
-  const commands = [
-    { transcript: 'Turn on the living room lights at 60% brightness', intent: 'lights.on', confidence: 0.97, status: 'SUCCESS', deviceId: devices[1].id, minutesAgo: 8 },
-    { transcript: 'Set an alarm for 7 AM tomorrow', intent: 'alarm.set', confidence: 0.99, status: 'SUCCESS', deviceId: devices[0].id, minutesAgo: 12 },
-    { transcript: 'Play my focus playlist on the bedroom speaker', intent: 'media.play', confidence: 0.92, status: 'SUCCESS', deviceId: devices[3].id, minutesAgo: 19 },
-    { transcript: 'What is the weather forecast for the weekend', intent: 'weather.query', confidence: 0.78, status: 'PARTIAL', deviceId: devices[2].id, minutesAgo: 26 },
-    { transcript: 'Call mum on speakerphone', intent: 'call.initiate', confidence: 0.95, status: 'SUCCESS', deviceId: devices[0].id, minutesAgo: 33 },
-    { transcript: 'Remind me to take out the trash at 6', intent: 'reminder.create', confidence: 0.41, status: 'FAILED', deviceId: devices[4].id, minutesAgo: 42 },
-    { transcript: 'Decrease the thermostat by two degrees', intent: 'climate.adjust', confidence: 0.94, status: 'SUCCESS', deviceId: devices[1].id, minutesAgo: 50 },
-    { transcript: 'Lock the front door', intent: 'door.lock', confidence: 0.96, status: 'SUCCESS', deviceId: devices[1].id, minutesAgo: 65 },
-    { transcript: 'What time is it in London', intent: 'time.query', confidence: 0.99, status: 'SUCCESS', deviceId: devices[0].id, minutesAgo: 73 },
-    { transcript: 'Send a message to mum saying I will call later', intent: 'message.send', confidence: 0.88, status: 'SUCCESS', deviceId: devices[0].id, minutesAgo: 88 },
-    { transcript: 'Add milk to my shopping list', intent: 'list.add', confidence: 0.93, status: 'SUCCESS', deviceId: devices[1].id, minutesAgo: 95 },
-    { transcript: 'Skip this song', intent: 'media.skip', confidence: 0.91, status: 'SUCCESS', deviceId: devices[3].id, minutesAgo: 110 },
-    { transcript: 'Set a timer for 12 minutes', intent: 'timer.set', confidence: 0.97, status: 'SUCCESS', deviceId: devices[2].id, minutesAgo: 125 },
-    { transcript: 'How many calories in an apple', intent: 'nutrition.query', confidence: 0.85, status: 'SUCCESS', deviceId: devices[1].id, minutesAgo: 140 },
-    { transcript: 'Open the garage door', intent: 'door.open', confidence: 0.42, status: 'FAILED', deviceId: devices[7].id, minutesAgo: 155 },
-    { transcript: 'Translate hello to Spanish', intent: 'translate', confidence: 0.94, status: 'SUCCESS', deviceId: devices[0].id, minutesAgo: 170 },
-    { transcript: 'How far is the airport from here', intent: 'distance.query', confidence: 0.71, status: 'PARTIAL', deviceId: devices[0].id, minutesAgo: 185 },
-  ]
-
-  for (const c of commands) {
-    await db.voiceCommand.create({
-      data: {
-        transcript: c.transcript,
-        intent: c.intent,
-        confidence: c.confidence,
-        status: c.status,
-        deviceId: c.deviceId,
-        issuedAt: new Date(Date.now() - c.minutesAgo * 60 * 1000),
-      },
-    })
-  }
-  console.log(`  ✓ Created ${commands.length} voice commands`)
-
-  // ─── Energy readings (12 hours of data per device) ────
-  const now = new Date()
-  for (const device of devices) {
-    // Skip offline devices — they don't report
-    if (device.status === 'OFFLINE') continue
-
-    for (let h = 11; h >= 0; h--) {
-      const recordedAt = new Date(now.getTime() - h * 60 * 60 * 1000)
-      // Speech-like pattern: low at night, peak in evening
-      const hourOfDay = recordedAt.getHours()
-      let baseKw = 0.3 // baseline
-      if (hourOfDay >= 7 && hourOfDay < 10) baseKw = 0.8 // morning
-      else if (hourOfDay >= 10 && hourOfDay < 17) baseKw = 1.2 // daytime
-      else if (hourOfDay >= 17 && hourOfDay < 22) baseKw = 1.8 // evening peak
-      else baseKw = 0.4 // night
-
-      // Per-device variation
-      const deviceMultiplier = device.type === 'SPEAKER' ? 1.4 : device.type === 'DISPLAY' ? 1.1 : 0.7
-      const noise = (Math.random() - 0.5) * 0.2
-      const kilowatts = Math.max(0.05, baseKw * deviceMultiplier + noise)
-
-      await db.energyReading.create({
-        data: {
-          deviceId: device.id,
-          kilowatts: parseFloat(kilowatts.toFixed(3)),
-          wattHours: parseFloat((kilowatts * 1000).toFixed(1)),
-          recordedAt,
-        },
-      })
-    }
-  }
-  console.log(`  ✓ Created energy readings (12h × 7 active devices)`)
-
-  // ─── Security alerts ──────────────────────────────────
-  const alerts = [
-    {
-      title: 'Unrecognized voice profile',
-      description: 'An unregistered voice attempted to issue the command "unlock front door". Access was denied and the event was logged.',
-      severity: 'CRITICAL',
-      deviceId: devices[1].id,
-      triggeredAt: new Date(Date.now() - 2 * 60 * 1000),
-    },
-    {
-      title: 'Microphone access blocked',
-      description: 'App "QuickWeather" requested background microphone access. Request auto-denied per privacy policy.',
-      severity: 'CRITICAL',
-      deviceId: devices[0].id,
-      triggeredAt: new Date(Date.now() - 47 * 60 * 1000),
-    },
-    {
-      title: 'Unusual location sign-in',
-      description: 'Aria Cloud account accessed from Lekki, Lagos — a new location. If this wasn\'t you, review active sessions.',
-      severity: 'WARNING',
-      deviceId: null,
-      triggeredAt: new Date(Date.now() - 60 * 60 * 1000),
-    },
-    {
-      title: 'Device firmware out of date',
-      description: 'Bedroom Hub is running firmware 3.8.2 — version 4.0.1 patches CVE-2025-31822. Update recommended.',
-      severity: 'WARNING',
-      deviceId: devices[3].id,
-      triggeredAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
-    },
-    {
-      title: 'New device paired',
-      description: 'Galaxy Watch6 was successfully paired to your Aria account. Biometric binding completed.',
-      severity: 'INFO',
-      deviceId: devices[4].id,
-      triggeredAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-    },
-    {
-      title: 'Security scan completed',
-      description: 'Weekly security scan finished. No anomalies detected across 12 devices, 47 permissions, and 3 networks.',
-      severity: 'SUCCESS',
-      deviceId: null,
-      triggeredAt: new Date(Date.now() - 24 * 60 * 60 * 1000 - 2 * 60 * 60 * 1000),
-    },
-  ]
-
-  for (const a of alerts) {
-    await db.securityAlert.create({
-      data: {
-        title: a.title,
-        description: a.description,
-        severity: a.severity,
-        status: 'OPEN',
-        deviceId: a.deviceId,
-        triggeredAt: a.triggeredAt,
-      },
-    })
-  }
-  console.log(`  ✓ Created ${alerts.length} security alerts`)
-
-  console.log('\n🌱 Seed complete!')
-  console.log(`  Login as: ${admin.email}`)
+  console.log('  ✓ All data cleared')
+  console.log('')
+  console.log('🌱 Database is now empty. To populate with real data:')
+  console.log('  1. Sign up at /login (creates a real user via Supabase Auth)')
+  console.log('  2. Pair a device at /pair (creates a real device via companion app)')
+  console.log('  3. Use the companion app at /companion to report real activity')
+  console.log('  4. Use the voice assistant to ask about your devices')
 }
 
 main()

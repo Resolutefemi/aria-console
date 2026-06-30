@@ -11,6 +11,7 @@ type FetchState<T> = {
 
 /**
  * Generic data-fetching hook with polling support.
+ * Automatically includes the Supabase auth token if available.
  *
  * @param url API endpoint URL (relative path)
  * @param options.refetchInterval Optional polling interval in ms (0 = disabled)
@@ -41,7 +42,23 @@ export function useApi<T>(
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch(url, { signal: controller.signal })
+        // Get the Supabase session token from localStorage
+        let token: string | null = null
+        try {
+          const stored = localStorage.getItem('sb-hfvxywlzlkysrgrwelgz-auth-token')
+          if (stored) {
+            const parsed = JSON.parse(stored)
+            token = parsed?.access_token ?? null
+          }
+        } catch {}
+
+        const headers: Record<string, string> = {}
+        if (token) headers['Authorization'] = `Bearer ${token}`
+
+        const res = await fetch(url as string, {
+          signal: controller.signal,
+          headers,
+        })
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`)
         }
@@ -77,3 +94,4 @@ export function useApi<T>(
 
   return { data, loading, error, refetch }
 }
+
