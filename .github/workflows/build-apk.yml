@@ -100,7 +100,7 @@ jobs:
           // Release signing config
           android.signingConfigs {
             release {
-              storeFile file('../../aria-release.keystore')
+              storeFile file('../aria-release.keystore')
               storePassword 'aria-console-2026'
               keyAlias 'aria-key'
               keyPassword 'aria-console-2026'
