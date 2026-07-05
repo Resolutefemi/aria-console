@@ -32,9 +32,8 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          api-level: 34
-          build-tools-version: '34.0.0'
-          ndk-version: '26.1.10909125'
+          api-level: 35
+          build-tools-version: '35.0.0'
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v1
@@ -47,16 +46,36 @@ jobs:
           npm install --legacy-peer-deps
           npx expo install --fix
 
-      - name: Setup Expo
-        working-directory: native-companion
-        run: |
-          npx expo install expo
-          npx expo --version
-
       - name: Generate native Android project
         working-directory: native-companion
         run: |
           npx expo prebuild --platform android --clean --no-install
+
+      - name: Disable New Architecture + CMake
+        working-directory: native-companion/android
+        run: |
+          # Ensure newArchEnabled is false
+          if grep -q "newArchEnabled" gradle.properties; then
+            sed -i 's/newArchEnabled=.*/newArchEnabled=false/' gradle.properties
+          else
+            echo "newArchEnabled=false" >> gradle.properties
+          fi
+          
+          # Remove externalNativeBuild block from app/build.gradle
+          # This prevents CMake from running entirely
+          python3 -c "
+          import re
+          with open('app/build.gradle', 'r') as f:
+            content = f.read()
+          # Remove externalNativeBuild blocks
+          content = re.sub(r'externalNativeBuild\s*\{[^}]*\}', '', content, flags=re.DOTALL)
+          with open('app/build.gradle', 'w') as f:
+            f.write(content)
+          "
+          
+          cat gradle.properties | grep newArch
+          echo "---"
+          head -50 app/build.gradle
 
       - name: Generate keystore for signing
         working-directory: native-companion/android
@@ -90,20 +109,11 @@ jobs:
           android.buildTypes.release.signingConfig = android.signingConfigs.release
           GRADLE_EOF
 
-          # Disable CMake / NDK builds (not needed for JS-only app)
-          cat >> gradle.properties << 'PROPS_EOF'
-          android.enableCMakeRelWithDebInfo=false
-          reactNativeArchitectures=armeabi-v7a,arm64-v8a,x86,x86_64
-          PROPS_EOF
-
-          # Remove CMake from build.gradle
-          sed -i 's/externalNativeBuild//g' app/build.gradle || true
-
       - name: Build release APK
         working-directory: native-companion/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon -x lintVitalRelease -x configureCMakeRelWithDebInfo -x buildCMakeRelWithDebInfo
+          ./gradlew assembleRelease --no-daemon -x lintVitalRelease
 
       - name: Rename APK
         working-directory: native-companion/android
@@ -142,11 +152,6 @@ jobs:
             3. Allow "Install from unknown sources" if prompted
             4. Install and open the app
             5. Enter the 6-digit pairing code from your Aria Console dashboard
-
-            ## Build info
-            - Build: #${{ github.run_number }}
-            - Commit: ${{ github.sha }}
-            - Date: ${{ github.run_started_at }}
           files: aria-companion.apk
           prerelease: false
         env:

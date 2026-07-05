@@ -49,6 +49,7 @@
         "projectId": ""
       }
     },
-    "scheme": "aria-companion"
+    "scheme": "aria-companion",
+    "newArchEnabled": false
   }
 }
