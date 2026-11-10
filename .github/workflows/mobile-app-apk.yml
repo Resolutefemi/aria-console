@@ -1,0 +1,85 @@
+name: Build Mobile App APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile-app/**'
+      - '.github/workflows/mobile-app-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build release APK (Flutter)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile-app
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      - name: Generate Android platform project
+        run: flutter create . --platforms android --org dev.ariaconsole --project-name aria_console_mobile
+
+      - name: Fetch dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Rename APK
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/aria-console-mobile.apk
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aria-console-mobile-apk
+          path: mobile-app/build/app/outputs/flutter-apk/aria-console-mobile.apk
+          if-no-files-found: error
+
+      - name: Attach to mobile-latest release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          if gh release view mobile-latest >/dev/null 2>&1; then
+            gh release upload mobile-latest \
+              mobile-app/build/app/outputs/flutter-apk/aria-console-mobile.apk --clobber
+          else
+            gh release create mobile-latest \
+              mobile-app/build/app/outputs/flutter-apk/aria-console-mobile.apk \
+              --title "Aria Console — Mobile Parent App (latest)" \
+              --notes "Latest release APK of the Aria Console parent app.
+
+Install: download aria-console-mobile.apk on your Android phone and open it.
+
+Features: pairing, remote commands (lock, ring, screenshot, locate, message),
+app blocking + daily limits, live location map, screen-time charts,
+bedtime schedules, web filtering and realtime security alerts.
+Light theme: white + purple · Dark theme: black + purple."
+          fi
