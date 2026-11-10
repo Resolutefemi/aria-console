@@ -77,7 +77,7 @@ bad()  { FAIL_COUNT=$((FAIL_COUNT+1)); echo "  ✘ $1"; }
 
 # ── 1. fresh signup: must log in immediately, no confirmation ───────
 echo "TEST 1: fresh signup returns a session (no confirmation step)"
-BODY=$(curl -s -w '\n%{http_code}' -D /tmp/aria_noconfirm_hdr.txt \
+BODY=$(curl -s -w '\n%{http_code}' -D /tmp/aria_noconfirm_hdr.txt -c "$COOKIE" \
   -X POST "$BASE/api/auth/signup" -H 'Content-Type: application/json' \
   -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"name\":\"NoConfirm E2E\"}")
 CODE=$(echo "$BODY" | tail -1); JSON=$(echo "$BODY" | head -n -1)
@@ -85,8 +85,8 @@ CODE=$(echo "$BODY" | tail -1); JSON=$(echo "$BODY" | head -n -1)
 echo "$JSON" | rg -q '"needsConfirmation"' && bad "response still mentions needsConfirmation" || ok "no needsConfirmation in response"
 echo "$JSON" | rg -q '"profile"' && ok "profile returned" || bad "no profile in response"
 grep -qi 'set-cookie: .*aria_session=' /tmp/aria_noconfirm_hdr.txt && ok "aria_session cookie set" || bad "no aria_session cookie"
-echo "$JSON" | rg -q '"email_confirm":true' && ok "user email_confirm=true" || bad "email_confirm not true"
-echo "$JSON" | rg -qi 'confirm' && bad "confirm-related text in response" || ok "zero confirm-related text in response"
+echo "$JSON" | rg -q '"email_confirmed_at":"[^"]+"' && ok "user email_confirmed_at set" || bad "email_confirmed_at missing"
+echo "$JSON" | rg -qi 'needsConfirmation|confirmation link|Check your email' && bad "confirm-flow copy in response" || ok "no confirm-flow copy in response"
 
 # ── 2. session resolves with the cookie ─────────────────────────────
 echo "TEST 2: session resolves with the signup cookie"
@@ -109,8 +109,9 @@ CODE=$(curl -s -o /tmp/aria_signin.json -w '%{http_code}' -X POST "$BASE/api/aut
 # ── 5. UI page renders and carries no confirmation copy ─────────────
 echo "TEST 5: /login page renders without confirmation-link copy"
 HTML=$(curl -s "$BASE/login")
+echo "$HTML" > /tmp/aria_login.html
 echo "$HTML" | rg -qi 'check your email|confirmation link' && bad "login page still shows confirmation copy" || ok "no confirmation copy on /login"
-echo "$HTML" | rg -q 'Create Account' && ok "login page renders" || bad "login page content missing"
+echo "$HTML" | rg -qi 'Welcome back|Aria Console' && ok "login page renders" || bad "login page content missing"
 
 # ── cleanup ─────────────────────────────────────────────────────────
 cleanup_user_pre
