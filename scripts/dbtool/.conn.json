@@ -1,0 +1,8 @@
+{
+  "host": "aws-1-eu-central-1.pooler.supabase.com",
+  "port": 5432,
+  "user": "postgres.gvcsbkwnpebpflazpucb",
+  "password": "Resolute2474life#",
+  "database": "postgres",
+  "note": "Supavisor session mode (IPv4). Direct db.gvcsbkwnpebpflazpucb.supabase.co:5432 is IPv6-only. Transaction mode: port 6543."
+}
