@@ -9,7 +9,7 @@ import { getAdminClient, getAuthContext, serialize } from '@/lib/db'
  */
 export async function POST(request: NextRequest) {
   try {
-    const ctx = await getAuthContext(request.headers.get('authorization'))
+    const ctx = await getAuthContext(request)
 
     if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

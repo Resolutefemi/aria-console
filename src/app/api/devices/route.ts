@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     let currentUserId: string | null = null
     let currentUserRole: string | null = null
 
-    const ctx = await getAuthContext(request.headers.get('authorization'))
+    const ctx = await getAuthContext(request)
     if (ctx) {
       currentUserId = ctx.dbUser.id
       currentUserRole = ctx.dbUser.role

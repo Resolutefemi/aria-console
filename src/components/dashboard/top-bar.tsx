@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useSyncExternalStore } from 'react'
+import { useState, useEffect, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTheme } from 'next-themes'
 import {
   Search,
   Bell,
@@ -25,6 +26,24 @@ function getClientSnapshot() {
 }
 function getServerSnapshot() {
   return 0
+}
+
+function ThemeToggle() {
+  const { setTheme, resolvedTheme } = useTheme()
+
+  return (
+    <button
+      type="button"
+      onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+      className="p-2 rounded-md hover:bg-muted transition-colors hidden sm:inline-flex"
+      aria-label="Toggle light or dark mode"
+      title="Toggle theme"
+    >
+      {/* Icon visibility is CSS-driven (no hydration mismatch) */}
+      <Moon className="w-5 h-5 hidden dark:block" />
+      <Sun className="w-5 h-5 dark:hidden" />
+    </button>
+  )
 }
 
 export function TopBar() {
@@ -78,14 +97,7 @@ export function TopBar() {
           <span className="text-[10px] text-muted-foreground">{dateStr}</span>
         </div>
 
-        <button
-          type="button"
-          className="p-2 rounded-md hover:bg-muted transition-colors hidden sm:inline-flex"
-          aria-label="Toggle theme"
-        >
-          <Moon className="w-5 h-5 hidden dark:block" />
-          <Sun className="w-5 h-5 dark:hidden" />
-        </button>
+        <ThemeToggle />
 
         <AccessibilityPanel />
 

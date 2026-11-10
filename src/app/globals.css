@@ -43,76 +43,85 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* Light theme — warm paper-like, evokes enterprise console */
+/*
+ * ─── Light theme — white + purple ───────────────────────────────────
+ * Clean white surfaces with violet-600 as the brand color. Purple is
+ * used for every brand accent: buttons, active states, focus rings,
+ * the logo mark and chart series.
+ */
 :root {
-  --radius: 0.5rem;
-  --background: oklch(0.98 0.004 80);
-  --foreground: oklch(0.18 0.008 60);
-  --card: oklch(1 0.002 80);
-  --card-foreground: oklch(0.18 0.008 60);
-  --popover: oklch(1 0.002 80);
-  --popover-foreground: oklch(0.18 0.008 60);
-  --primary: oklch(0.28 0.02 60);
-  --primary-foreground: oklch(0.98 0.004 80);
-  --secondary: oklch(0.94 0.006 80);
-  --secondary-foreground: oklch(0.28 0.02 60);
-  --muted: oklch(0.95 0.005 80);
-  --muted-foreground: oklch(0.48 0.008 60);
-  --accent: oklch(0.72 0.14 65);
-  --accent-foreground: oklch(0.18 0.008 60);
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.17 0.02 295);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.17 0.02 295);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.17 0.02 295);
+  --primary: oklch(0.52 0.23 293);
+  --primary-foreground: oklch(0.99 0.003 300);
+  --secondary: oklch(0.955 0.015 300);
+  --secondary-foreground: oklch(0.3 0.06 295);
+  --muted: oklch(0.96 0.01 300);
+  --muted-foreground: oklch(0.5 0.025 295);
+  --accent: oklch(0.52 0.23 293);
+  --accent-foreground: oklch(0.99 0.003 300);
   --destructive: oklch(0.58 0.22 25);
-  --border: oklch(0.9 0.005 80);
-  --input: oklch(0.92 0.005 80);
-  --ring: oklch(0.72 0.14 65);
-  --chart-1: oklch(0.68 0.14 65);
-  --chart-2: oklch(0.62 0.1 165);
-  --chart-3: oklch(0.55 0.08 250);
-  --chart-4: oklch(0.72 0.16 30);
-  --chart-5: oklch(0.5 0.05 60);
-  --sidebar: oklch(0.96 0.005 80);
-  --sidebar-foreground: oklch(0.18 0.008 60);
-  --sidebar-primary: oklch(0.28 0.02 60);
-  --sidebar-primary-foreground: oklch(0.98 0.004 80);
-  --sidebar-accent: oklch(0.92 0.01 65);
-  --sidebar-accent-foreground: oklch(0.18 0.008 60);
-  --sidebar-border: oklch(0.9 0.005 80);
-  --sidebar-ring: oklch(0.72 0.14 65);
+  --border: oklch(0.915 0.02 300);
+  --input: oklch(0.93 0.02 300);
+  --ring: oklch(0.58 0.2 293);
+  --chart-1: oklch(0.52 0.23 293);
+  --chart-2: oklch(0.62 0.18 320);
+  --chart-3: oklch(0.44 0.16 285);
+  --chart-4: oklch(0.75 0.13 305);
+  --chart-5: oklch(0.56 0.1 260);
+  --sidebar: oklch(0.985 0.006 300);
+  --sidebar-foreground: oklch(0.17 0.02 295);
+  --sidebar-primary: oklch(0.52 0.23 293);
+  --sidebar-primary-foreground: oklch(0.99 0.003 300);
+  --sidebar-accent: oklch(0.94 0.03 300);
+  --sidebar-accent-foreground: oklch(0.3 0.08 295);
+  --sidebar-border: oklch(0.915 0.02 300);
+  --sidebar-ring: oklch(0.58 0.2 293);
 }
 
-/* Dark theme — premium warm charcoal (NOT AI-purple) */
+/*
+ * ─── Dark theme — black + purple ────────────────────────────────────
+ * Near-black surfaces with a violet glow. Bright violet-400/500 as the
+ * brand color so CTAs and active states pop against the dark canvas.
+ */
 .dark {
-  --radius: 0.5rem;
-  --background: oklch(0.165 0.005 60);
-  --foreground: oklch(0.93 0.005 70);
-  --card: oklch(0.205 0.006 60);
-  --card-foreground: oklch(0.93 0.005 70);
-  --popover: oklch(0.205 0.006 60);
-  --popover-foreground: oklch(0.93 0.005 70);
-  --primary: oklch(0.95 0.005 70);
-  --primary-foreground: oklch(0.205 0.006 60);
-  --secondary: oklch(0.26 0.006 60);
-  --secondary-foreground: oklch(0.93 0.005 70);
-  --muted: oklch(0.24 0.006 60);
-  --muted-foreground: oklch(0.65 0.008 60);
-  --accent: oklch(0.78 0.14 70);
-  --accent-foreground: oklch(0.18 0.008 60);
+  --radius: 0.625rem;
+  --background: oklch(0.115 0.012 300);
+  --foreground: oklch(0.95 0.01 300);
+  --card: oklch(0.155 0.016 300);
+  --card-foreground: oklch(0.95 0.01 300);
+  --popover: oklch(0.155 0.016 300);
+  --popover-foreground: oklch(0.95 0.01 300);
+  --primary: oklch(0.68 0.21 293);
+  --primary-foreground: oklch(0.115 0.012 300);
+  --secondary: oklch(0.22 0.022 300);
+  --secondary-foreground: oklch(0.93 0.015 300);
+  --muted: oklch(0.2 0.018 300);
+  --muted-foreground: oklch(0.68 0.025 300);
+  --accent: oklch(0.68 0.21 293);
+  --accent-foreground: oklch(0.115 0.012 300);
   --destructive: oklch(0.65 0.22 25);
-  --border: oklch(0.3 0.006 60);
-  --input: oklch(0.28 0.006 60);
-  --ring: oklch(0.78 0.14 70);
-  --chart-1: oklch(0.78 0.14 70);
-  --chart-2: oklch(0.7 0.1 165);
-  --chart-3: oklch(0.62 0.09 250);
-  --chart-4: oklch(0.7 0.15 35);
-  --chart-5: oklch(0.55 0.05 60);
-  --sidebar: oklch(0.18 0.005 60);
-  --sidebar-foreground: oklch(0.93 0.005 70);
-  --sidebar-primary: oklch(0.78 0.14 70);
-  --sidebar-primary-foreground: oklch(0.18 0.008 60);
-  --sidebar-accent: oklch(0.24 0.006 60);
-  --sidebar-accent-foreground: oklch(0.93 0.005 70);
-  --sidebar-border: oklch(0.28 0.006 60);
-  --sidebar-ring: oklch(0.78 0.14 70);
+  --border: oklch(0.26 0.022 300);
+  --input: oklch(0.24 0.02 300);
+  --ring: oklch(0.68 0.19 293);
+  --chart-1: oklch(0.68 0.21 293);
+  --chart-2: oklch(0.74 0.16 320);
+  --chart-3: oklch(0.6 0.18 285);
+  --chart-4: oklch(0.8 0.12 305);
+  --chart-5: oklch(0.62 0.1 260);
+  --sidebar: oklch(0.135 0.014 300);
+  --sidebar-foreground: oklch(0.95 0.01 300);
+  --sidebar-primary: oklch(0.68 0.21 293);
+  --sidebar-primary-foreground: oklch(0.115 0.012 300);
+  --sidebar-accent: oklch(0.22 0.03 300);
+  --sidebar-accent-foreground: oklch(0.93 0.02 300);
+  --sidebar-border: oklch(0.25 0.02 300);
+  --sidebar-ring: oklch(0.68 0.19 293);
 }
 
 @layer base {
@@ -127,7 +136,7 @@
   }
 }
 
-/* Custom scrollbar — subtle, modern */
+/* Custom scrollbar — purple-tinted, subtle */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -136,17 +145,17 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: oklch(0.35 0.005 60 / 0.4);
+  background: oklch(0.52 0.1 295 / 0.35);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.45 0.005 60 / 0.6);
+  background: oklch(0.52 0.15 295 / 0.55);
 }
 .dark ::-webkit-scrollbar-thumb {
-  background: oklch(0.45 0.005 60 / 0.4);
+  background: oklch(0.68 0.12 295 / 0.3);
 }
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: oklch(0.55 0.005 60 / 0.6);
+  background: oklch(0.68 0.15 295 / 0.5);
 }
 
 /* Voice waveform animation */
@@ -185,6 +194,32 @@
 /* Remove default outline on click for mouse users */
 *:focus:not(:focus-visible) {
   outline: none;
+}
+
+/* ─────────────────────────────────────────────────────────── */
+/* Brand helpers — purple glow used across auth & dashboard    */
+/* ─────────────────────────────────────────────────────────── */
+
+/* Soft purple radial glow behind auth screens and hero areas */
+.brand-glow {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, oklch(0.52 0.23 293 / 0.14), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 100% 100%, oklch(0.62 0.18 320 / 0.08), transparent 70%);
+}
+
+.dark .brand-glow {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, oklch(0.68 0.21 293 / 0.2), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 100% 100%, oklch(0.74 0.16 320 / 0.1), transparent 70%);
+}
+
+/* Logo mark — white/purple in light, black/purple in dark */
+.brand-mark {
+  background: linear-gradient(135deg, oklch(0.52 0.23 293), oklch(0.62 0.19 320));
+}
+
+.dark .brand-mark {
+  background: linear-gradient(135deg, oklch(0.68 0.21 293), oklch(0.74 0.16 320));
 }
 
 /* ─────────────────────────────────────────────────────────── */

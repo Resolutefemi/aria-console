@@ -1,23 +1,43 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import type { Session, User } from '@supabase/supabase-js'
-import { getBrowserClient } from '@/lib/supabase'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from 'react'
+import type { User } from '@supabase/supabase-js'
+
+/**
+ * Auth state for Aria Console.
+ *
+ * All authentication flows through same-origin API routes
+ * (/api/auth/*) which hold the Supabase session in an httpOnly cookie.
+ * The browser never talks to Supabase directly, so sign-in works even
+ * in sandboxed preview iframes where cross-origin fetches are blocked.
+ */
 
 type DbUser = {
   id: string
   email: string
   name: string
   role: string
+  isActive?: boolean
+  [key: string]: unknown
 }
 
 type AuthContextValue = {
   user: User | null
   dbUser: DbUser | null
-  session: Session | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
-  signUp: (email: string, password: string, name?: string) => Promise<{ error: string | null }>
+  signUp: (
+    email: string,
+    password: string,
+    name?: string
+  ) => Promise<{ error: string | null; needsConfirmation?: boolean }>
   signOut: () => Promise<void>
 }
 
@@ -26,76 +46,97 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [dbUser, setDbUser] = useState<DbUser | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
-  async function syncDbUser(sess: Session | null) {
-    if (!sess?.access_token) {
-      setDbUser(null)
-      return
-    }
+  const refreshSession = useCallback(async () => {
     try {
-      const res = await fetch('/api/auth/sync', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${sess.access_token}`,
-        },
+      const res = await fetch('/api/auth/session', {
+        cache: 'no-store',
       })
       if (res.ok) {
         const data = await res.json()
-        setDbUser(data.user)
+        setUser(data.user ?? null)
+        setDbUser(data.profile ?? null)
+      } else {
+        setUser(null)
+        setDbUser(null)
       }
-    } catch (e) {
-      console.error('Failed to sync user:', e)
-    }
-  }
-
-  useEffect(() => {
-    const supabase = getBrowserClient()
-
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      await syncDbUser(session)
+    } catch {
+      setUser(null)
+      setDbUser(null)
+    } finally {
       setLoading(false)
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session)
-        setUser(session?.user ?? null)
-        await syncDbUser(session)
-        setLoading(false)
-      }
-    )
-
-    return () => subscription.unsubscribe()
+    }
   }, [])
 
-  const signIn = async (email: string, password: string) => {
-    const supabase = getBrowserClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return { error: error?.message ?? null }
-  }
+  useEffect(() => {
+    void refreshSession()
+  }, [refreshSession])
 
-  const signUp = async (email: string, password: string, name?: string) => {
-    const supabase = getBrowserClient()
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: name ? { name } : undefined },
-    })
-    return { error: error?.message ?? null }
-  }
+  const signIn = useCallback(async (email: string, password: string) => {
+    try {
+      const res = await fetch('/api/auth/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        return { error: data.error ?? 'Unable to sign in. Please try again.' }
+      }
+      setUser(data.user ?? null)
+      setDbUser(data.profile ?? null)
+      return { error: null }
+    } catch {
+      return {
+        error: 'Could not reach the sign-in service. Check your connection.',
+      }
+    }
+  }, [])
 
-  const signOut = async () => {
-    const supabase = getBrowserClient()
-    await supabase.auth.signOut()
+  const signUp = useCallback(
+    async (email: string, password: string, name?: string) => {
+      try {
+        const res = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, name }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          return {
+            error: data.error ?? 'Unable to create the account. Please try again.',
+          }
+        }
+        if (data.needsConfirmation) {
+          return { error: null, needsConfirmation: true }
+        }
+        setUser(data.user ?? null)
+        setDbUser(data.profile ?? null)
+        return { error: null }
+      } catch {
+        return {
+          error: 'Could not reach the sign-up service. Check your connection.',
+        }
+      }
+    },
+    []
+  )
+
+  const signOut = useCallback(async () => {
+    try {
+      await fetch('/api/auth/signout', { method: 'POST' })
+    } catch {
+      // Cookie clearing is best-effort; reset local state regardless.
+    }
+    setUser(null)
     setDbUser(null)
-  }
+  }, [])
 
   return (
-    <AuthContext.Provider value={{ user, dbUser, session, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider
+      value={{ user, dbUser, loading, signIn, signUp, signOut }}
+    >
       {children}
     </AuthContext.Provider>
   )

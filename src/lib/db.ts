@@ -1,5 +1,7 @@
 import { SupabaseClient, User } from '@supabase/supabase-js'
+import type { NextRequest } from 'next/server'
 import { getServerClient } from '@/lib/supabase'
+import { readSessionTokens } from '@/lib/session'
 
 /**
  * Supabase data layer — replaces the old Prisma client.
@@ -71,13 +73,26 @@ export type AuthContext = {
 }
 
 /**
- * Resolves the current user from the Authorization: Bearer <jwt> header.
- * Returns null when the token is missing or invalid.
+ * Resolves the current user from either the `Authorization: Bearer <jwt>`
+ * header or the httpOnly `aria_session` cookie (whichever is present).
+ * Returns null when no valid token can be found.
  */
 export async function getAuthContext(
-  authHeader: string | null
+  auth: NextRequest | string | null
 ): Promise<AuthContext | null> {
-  const token = authHeader?.replace(/^Bearer\s+/i, '').trim()
+  let token: string | null = null
+
+  if (auth && typeof auth !== 'string') {
+    token =
+      auth.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim() ??
+      null
+    if (!token) {
+      token = readSessionTokens(auth)?.a ?? null
+    }
+  } else {
+    token = auth?.replace(/^Bearer\s+/i, '').trim() ?? null
+  }
+
   if (!token) return null
 
   const admin = getAdminClient()

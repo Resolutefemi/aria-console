@@ -93,15 +93,15 @@ export function EnergyUsage() {
                 <AreaChart data={hourly} margin={{ top: 5, right: 8, left: -16, bottom: 0 }}>
                   <defs>
                     <linearGradient id="energyGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="oklch(0.78 0.14 70)" stopOpacity={0.45} />
-                      <stop offset="100%" stopColor="oklch(0.78 0.14 70)" stopOpacity={0} />
+                      <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="2 4" stroke="oklch(0.3 0.005 60)" vertical={false} />
-                  <XAxis dataKey="t" stroke="oklch(0.55 0.008 60)" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}:00`} />
-                  <YAxis stroke="oklch(0.55 0.008 60)" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}kW`} />
-                  <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'oklch(0.78 0.14 70)', strokeWidth: 1, strokeDasharray: '3 3' }} />
-                  <Area type="monotone" dataKey="kw" stroke="oklch(0.78 0.14 70)" strokeWidth={1.75} fill="url(#energyGrad)" dot={false} activeDot={{ r: 3, fill: 'oklch(0.78 0.14 70)', stroke: 'oklch(0.205 0.006 60)', strokeWidth: 1.5 }} />
+                  <CartesianGrid strokeDasharray="2 4" stroke="var(--border)" vertical={false} />
+                  <XAxis dataKey="t" stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}:00`} />
+                  <YAxis stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}kW`} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--chart-1)', strokeWidth: 1, strokeDasharray: '3 3' }} />
+                  <Area type="monotone" dataKey="kw" stroke="var(--chart-1)" strokeWidth={1.75} fill="url(#energyGrad)" dot={false} activeDot={{ r: 3, fill: 'var(--chart-1)', stroke: 'var(--card)', strokeWidth: 1.5 }} />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -119,13 +119,13 @@ export function EnergyUsage() {
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={byDevice} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }} barCategoryGap={6}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="oklch(0.3 0.005 60)" horizontal={false} />
-                  <XAxis type="number" stroke="oklch(0.55 0.008 60)" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}kWh`} />
-                  <YAxis type="category" dataKey="name" stroke="oklch(0.55 0.008 60)" fontSize={10} tickLine={false} axisLine={false} width={110} tickFormatter={(v: string) => v.length > 16 ? v.slice(0, 15) + '…' : v} />
-                  <Tooltip content={<BarTooltip />} cursor={{ fill: 'oklch(0.3 0.005 60 / 0.3)' }} />
+                  <CartesianGrid strokeDasharray="2 4" stroke="var(--border)" horizontal={false} />
+                  <XAxis type="number" stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}kWh`} />
+                  <YAxis type="category" dataKey="name" stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} width={110} tickFormatter={(v: string) => v.length > 16 ? v.slice(0, 15) + '…' : v} />
+                  <Tooltip content={<BarTooltip />} cursor={{ fill: 'var(--muted)' }} />
                   <Bar dataKey="kwh" radius={[0, 3, 3, 0]}>
                     {byDevice.map((_, i) => (
-                      <Cell key={i} fill={i === 0 ? 'oklch(0.78 0.14 70)' : i === 1 ? 'oklch(0.7 0.1 165)' : i === 2 ? 'oklch(0.62 0.09 250)' : i === 3 ? 'oklch(0.7 0.15 35)' : 'oklch(0.55 0.05 60)'} />
+                      <Cell key={i} fill={`var(--chart-${(i % 5) + 1})`} />
                     ))}
                   </Bar>
                 </BarChart>

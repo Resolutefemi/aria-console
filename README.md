@@ -91,7 +91,13 @@ Open http://localhost:3000 to view the dashboard.
 
 ### Account creation (Supabase Auth)
 
-All sign-up/sign-in goes through Supabase Auth:
+All sign-up/sign-in goes through Supabase Auth — proxied through the app's own
+API routes (`/api/auth/signin`, `/api/auth/signup`, `/api/auth/signout`,
+`/api/auth/session`). The browser never talks to `*.supabase.co` directly:
+credentials are posted to same-origin routes, and the Supabase session tokens
+are stored in an **httpOnly cookie** (`aria_session`) that API routes accept
+in place of `Authorization: Bearer` headers. Expired access tokens are
+silently refreshed server-side on `/api/auth/session`.
 
 - **First account becomes ADMIN** automatically (console bootstrap) — register via the **Sign Up** tab on `/login`.
 - After the first user, self-signups get the `MEMBER` role; admins can create additional operators with a chosen role via `POST /api/users` (which provisions them in Supabase Auth and returns a temporary password).

@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { AccessibilityProvider } from "@/components/accessibility/accessibility-provider";
+import { ThemeProvider } from "@/components/theme-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -87,7 +88,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >
@@ -98,11 +99,13 @@ export default function RootLayout({
         <a href="#main-content" className="skip-link">
           Skip to main content
         </a>
-        <AccessibilityProvider>
-          <AuthProvider>
-            {children}
-          </AuthProvider>
-        </AccessibilityProvider>
+        <ThemeProvider>
+          <AccessibilityProvider>
+            <AuthProvider>
+              {children}
+            </AuthProvider>
+          </AccessibilityProvider>
+        </ThemeProvider>
         <Toaster />
       </body>
     </html>

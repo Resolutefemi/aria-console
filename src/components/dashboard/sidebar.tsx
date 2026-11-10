@@ -44,8 +44,8 @@ export function Sidebar() {
       aria-label="Primary navigation"
     >
       <div className="flex items-center gap-2.5 h-16 px-5 border-b border-border">
-        <div className="w-8 h-8 rounded-md bg-gradient-to-br from-accent to-accent/70 flex items-center justify-center shadow-sm" aria-hidden="true">
-          <span className="font-mono text-sm font-bold text-accent-foreground">A</span>
+        <div className="w-8 h-8 rounded-lg brand-mark flex items-center justify-center shadow-md shadow-primary/25" aria-hidden="true">
+          <span className="font-mono text-sm font-bold text-primary-foreground">A</span>
         </div>
         <div className="flex flex-col leading-tight">
           <span className="text-sm font-semibold tracking-tight">Aria Console</span>

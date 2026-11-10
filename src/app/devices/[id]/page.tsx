@@ -557,22 +557,22 @@ function ScreenTimeTab({ activity }: { activity: Activity }) {
               <AreaChart data={chartData} margin={{ top: 5, right: 8, left: -16, bottom: 40 }}>
                 <defs>
                   <linearGradient id="screenGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="oklch(0.78 0.14 70)" stopOpacity={0.45} />
-                    <stop offset="100%" stopColor="oklch(0.78 0.14 70)" stopOpacity={0} />
+                    <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.45} />
+                    <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="2 4" stroke="oklch(0.3 0.005 60)" vertical={false} />
-                <XAxis dataKey="name" stroke="oklch(0.55 0.008 60)" fontSize={10} tickLine={false} axisLine={false} angle={-30} textAnchor="end" height={50} />
-                <YAxis stroke="oklch(0.55 0.008 60)" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}m`} />
+                <CartesianGrid strokeDasharray="2 4" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} angle={-30} textAnchor="end" height={50} />
+                <YAxis stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}m`} />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: 'oklch(0.205 0.006 60)',
-                    border: '1px solid oklch(0.3 0.006 60)',
+                    backgroundColor: 'var(--popover)',
+                    border: '1px solid var(--border)',
                     borderRadius: '6px',
                     fontSize: '12px',
                   }}
                 />
-                <Area type="monotone" dataKey="minutes" stroke="oklch(0.78 0.14 70)" strokeWidth={1.75} fill="url(#screenGrad)" />
+                <Area type="monotone" dataKey="minutes" stroke="var(--chart-1)" strokeWidth={1.75} fill="url(#screenGrad)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>

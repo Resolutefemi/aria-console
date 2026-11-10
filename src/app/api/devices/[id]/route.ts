@@ -35,7 +35,7 @@ export async function GET(
 
     // Get current user
     let currentUserId: string | null = null
-    const ctx = await getAuthContext(request.headers.get('authorization'))
+    const ctx = await getAuthContext(request)
     if (ctx) currentUserId = ctx.dbUser.id
 
     const { data: device, error } = await admin

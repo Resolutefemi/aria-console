@@ -72,7 +72,7 @@ export function StatsCards() {
       },
       spark: [8, 10, 9, 11, 12, 11, 12],
       icon: Smartphone,
-      accent: 'text-emerald-500',
+      accent: 'text-chart-2',
     },
     {
       label: 'Voice Commands Today',
@@ -84,7 +84,7 @@ export function StatsCards() {
       },
       spark: [120, 180, 210, 240, 230, 247, 247],
       icon: Mic,
-      accent: 'text-accent',
+      accent: 'text-primary',
     },
     {
       label: 'Energy Usage',
@@ -97,7 +97,7 @@ export function StatsCards() {
       },
       spark: [5.1, 4.8, 4.6, 4.9, 4.4, 4.3, 4.2],
       icon: Zap,
-      accent: 'text-amber-500',
+      accent: 'text-chart-4',
     },
     {
       label: 'Active Alerts',
