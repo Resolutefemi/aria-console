@@ -13,7 +13,6 @@ import {
   Mic,
   ShieldCheck,
   Loader2,
-  MailCheck,
   AlertCircle,
 } from 'lucide-react'
 
@@ -49,12 +48,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   function resetFeedback() {
     setError(null)
-    setSuccess(null)
   }
 
   async function handleSignIn(e: React.FormEvent) {
@@ -74,20 +71,18 @@ export default function LoginPage() {
     e.preventDefault()
     resetFeedback()
     setLoading(true)
-    const { error, needsConfirmation } = await signUp(email, password, name)
+    const { error } = await signUp(email, password, name)
     setLoading(false)
     if (error) {
       setError(error)
-    } else if (needsConfirmation) {
-      setSuccess(
-        'Account created. Check your email for a confirmation link, then sign in.'
-      )
     } else {
+      // Account is created confirmed and signed in — go straight to the
+      // console. No email confirmation step.
       router.push('/')
     }
   }
 
-  const signInError = error && !success
+  const signInError = error
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">
@@ -286,16 +281,10 @@ export default function LoginPage() {
               </TabsContent>
             </Tabs>
 
-            {signInError && (
+            {error && (
               <Alert variant="destructive" className="mt-5">
                 <AlertCircle className="w-4 h-4" />
                 <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            {success && (
-              <Alert className="mt-5 border-primary/30 bg-primary/5 text-primary">
-                <MailCheck className="w-4 h-4" />
-                <AlertDescription>{success}</AlertDescription>
               </Alert>
             )}
           </div>

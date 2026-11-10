@@ -37,7 +37,7 @@ type AuthContextValue = {
     email: string,
     password: string,
     name?: string
-  ) => Promise<{ error: string | null; needsConfirmation?: boolean }>
+  ) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
 }
 
@@ -107,9 +107,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return {
             error: data.error ?? 'Unable to create the account. Please try again.',
           }
-        }
-        if (data.needsConfirmation) {
-          return { error: null, needsConfirmation: true }
         }
         setUser(data.user ?? null)
         setDbUser(data.profile ?? null)

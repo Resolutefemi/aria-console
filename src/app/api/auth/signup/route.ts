@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ensureProfile, setSessionCookie } from '@/lib/session'
+import { getAdminClient } from '@/lib/db'
 import { getBrowserAuthClient } from '@/lib/supabase'
 
 /**
  * POST /api/auth/signup
- * Server-side registration. When the project has email confirmation
- * enabled and no session comes back, the response carries
- * `needsConfirmation: true` so the UI can tell the user to check their
- * inbox. When confirmation is disabled, an httpOnly session cookie is
- * set immediately.
+ *
+ * Server-side registration WITHOUT any email-confirmation step: the
+ * account is created via the Supabase Admin API with `email_confirm:
+ * true`, so it is immediately usable — no "Confirm your signup" email
+ * is sent and there is no link to click. A session is minted right
+ * away and stored in the httpOnly `aria_session` cookie.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -33,25 +35,56 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const auth = getBrowserAuthClient()
-    const { data, error } = await auth.auth.signUp({
-      email,
-      password,
-      options: { data: name ? { name } : undefined },
-    })
+    // Create the user already-confirmed via the Admin API. This bypasses
+    // the confirmation-link flow entirely, regardless of the project's
+    // "Confirm email" setting, and no confirmation email is sent.
+    const admin = getAdminClient()
+    const { data: created, error: createError } =
+      await admin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: name ? { name } : undefined,
+      })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+    if (createError) {
+      const duplicate =
+        createError.code === 'email_exists' ||
+        /already (registered|exists)/i.test(createError.message)
+      return NextResponse.json(
+        {
+          error: duplicate
+            ? 'An account with this email already exists. Try signing in instead.'
+            : createError.message,
+        },
+        { status: duplicate ? 409 : 400 }
+      )
+    }
+    if (!created.user) {
+      return NextResponse.json(
+        { error: 'Account could not be created. Please try again.' },
+        { status: 500 }
+      )
     }
 
-    // Email confirmation required — no session yet.
-    if (!data.session || !data.user) {
-      return NextResponse.json({
-        needsConfirmation: true,
-        message: data.user
-          ? 'Account created. Check your email for a confirmation link, then sign in.'
-          : 'Check your email for a confirmation link, then sign in.',
-      })
+    // The Admin API cannot mint user sessions — sign in as the new user
+    // through the publishable-key client to get one for the cookie.
+    const auth = getBrowserAuthClient()
+    const { data, error: signInError } = await auth.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (signInError || !data.session) {
+      // Account exists and is confirmed — the user can simply sign in.
+      console.error('[auth/signup] session mint failed:', signInError?.message)
+      return NextResponse.json(
+        {
+          user: created.user,
+          message:
+            'Account created. Please sign in to continue.',
+        }
+      )
     }
 
     const profile = await ensureProfile(data.user)

@@ -9,7 +9,10 @@ export async function GET() {
       count: 'exact',
       head: true,
     })
-    if (error) throw error
+    // supabase-js errors are plain objects (not Error subclasses) —
+    // re-throw with the real message so /api/health stays actionable
+    // (e.g. "Invalid API key" instead of a useless "Unknown error").
+    if (error) throw new Error(error.message || 'Supabase query failed')
 
     const durationMs = Date.now() - start
 
@@ -21,12 +24,16 @@ export async function GET() {
       version: process.env.NEXT_PUBLIC_APP_VERSION ?? 'unknown',
     })
   } catch (error) {
+    const message =
+      error instanceof Error && error.message
+        ? error.message
+        : 'Unknown error'
     return NextResponse.json(
       {
         status: 'degraded',
         timestamp: new Date().toISOString(),
         database: 'disconnected',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: message,
       },
       { status: 503 }
     )
