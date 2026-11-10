@@ -1,6 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { getServerClient } from '@/lib/supabase'
+import { getAdminClient, getAuthContext, serialize, countOf } from '@/lib/db'
+
+const DEVICE_COUNTS =
+  'voice_commands(count), energy_readings(count), security_alerts(count), screen_time_sessions(count), location_pings(count), web_history(count), device_apps(count)'
+
+function toDeviceWithCounts(device: any) {
+  const s = serialize(device)
+  return {
+    ...s,
+    _count: {
+      voiceCommands: countOf(device.voice_commands),
+      energyReadings: countOf(device.energy_readings),
+      securityAlerts: countOf(device.security_alerts),
+      screenTimeSessions: countOf(device.screen_time_sessions),
+      locationPings: countOf(device.location_pings),
+      webHistory: countOf(device.web_history),
+      apps: countOf(device.device_apps),
+    },
+  }
+}
 
 /**
  * GET /api/devices/[id]
@@ -13,38 +31,20 @@ export async function GET(
 ) {
   try {
     const { id } = await params
+    const admin = getAdminClient()
 
     // Get current user
     let currentUserId: string | null = null
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
-    if (token) {
-      try {
-        const supabase = getServerClient()
-        const { data: { user } } = await supabase.auth.getUser(token)
-        if (user?.email) {
-          const dbUser = await db.user.findUnique({ where: { email: user.email } })
-          if (dbUser) currentUserId = dbUser.id
-        }
-      } catch {}
-    }
+    const ctx = await getAuthContext(request.headers.get('authorization'))
+    if (ctx) currentUserId = ctx.dbUser.id
 
-    const device = await db.device.findUnique({
-      where: { id },
-      include: {
-        _count: {
-          select: {
-            voiceCommands: true,
-            energyReadings: true,
-            securityAlerts: true,
-            screenTimeSessions: true,
-            locationPings: true,
-            webHistory: true,
-            apps: true,
-          },
-        },
-      },
-    })
+    const { data: device, error } = await admin
+      .from('devices')
+      .select(`*, ${DEVICE_COUNTS}`)
+      .eq('id', id)
+      .maybeSingle()
+
+    if (error) throw error
 
     if (!device) {
       return NextResponse.json({ error: 'Device not found' }, { status: 404 })
@@ -52,15 +52,23 @@ export async function GET(
 
     // Verify ownership — check if this device is paired to the current user
     if (currentUserId) {
-      const pairing = await db.devicePairing.findFirst({
-        where: { deviceId: id, parentId: currentUserId, status: 'PAIRED' },
-      })
+      const { data: pairing } = await admin
+        .from('device_pairings')
+        .select('id')
+        .eq('device_id', id)
+        .eq('parent_id', currentUserId)
+        .eq('status', 'PAIRED')
+        .maybeSingle()
+
       if (!pairing) {
-        return NextResponse.json({ error: 'Access denied — device not paired to your account' }, { status: 403 })
+        return NextResponse.json(
+          { error: 'Access denied — device not paired to your account' },
+          { status: 403 }
+        )
       }
     }
 
-    return NextResponse.json({ device })
+    return NextResponse.json({ device: toDeviceWithCounts(device) })
   } catch (error) {
     console.error('GET /api/devices/[id] error:', error)
     return NextResponse.json({ error: 'Failed to fetch device' }, { status: 500 })
@@ -80,19 +88,25 @@ export async function PATCH(
     const body = await request.json()
     const { name, room, status, battery, signal, firmware } = body
 
-    const device = await db.device.update({
-      where: { id },
-      data: {
-        ...(name !== undefined && { name }),
-        ...(room !== undefined && { room }),
-        ...(status !== undefined && { status }),
-        ...(battery !== undefined && { battery }),
-        ...(signal !== undefined && { signal }),
-        ...(firmware !== undefined && { firmware }),
-      },
-    })
+    const updates: Record<string, unknown> = {}
+    if (name !== undefined) updates.name = name
+    if (room !== undefined) updates.room = room
+    if (status !== undefined) updates.status = status
+    if (battery !== undefined) updates.battery = battery
+    if (signal !== undefined) updates.signal = signal
+    if (firmware !== undefined) updates.firmware = firmware
 
-    return NextResponse.json({ device })
+    const admin = getAdminClient()
+    const { data: device, error } = await admin
+      .from('devices')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+
+    return NextResponse.json({ device: serialize(device) })
   } catch (error) {
     console.error('PATCH /api/devices/[id] error:', error)
     return NextResponse.json({ error: 'Failed to update device' }, { status: 500 })

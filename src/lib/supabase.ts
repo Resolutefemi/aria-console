@@ -3,8 +3,8 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 /**
  * Supabase client for browser-side operations.
  *
- * Uses the anon key — restricted by Row Level Security policies.
- * Safe to expose to the browser (NEXT_PUBLIC_ prefix).
+ * Uses the publishable key (new API key format) — restricted by Row Level
+ * Security policies. Safe to expose to the browser (NEXT_PUBLIC_ prefix).
  *
  * Use this for:
  * - User authentication (sign in, sign up, OAuth)
@@ -12,17 +12,23 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
  * - Direct queries from the browser (subject to RLS)
  */
 export function createBrowserClient(): SupabaseClient {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  // NOTE: NEXT_PUBLIC_* vars must be referenced statically so Next.js
+  // inlines them into the client bundle at build time.
+  const url =
+    process.env.NEXT_PUBLIC_SUPABASE_URL ??
+    (process.env.SUPABASE_URL as string | undefined)
+  const publishableKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY as string | undefined)
 
-  if (!url || !anonKey) {
+  if (!url || !publishableKey) {
     throw new Error(
       'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. ' +
       'Check your .env file.'
     )
   }
 
-  return createClient(url, anonKey, {
+  return createClient(url, publishableKey, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
@@ -33,9 +39,9 @@ export function createBrowserClient(): SupabaseClient {
 /**
  * Supabase client for server-side operations.
  *
- * Uses the service_role key — BYPASSES Row Level Security.
- * NEVER import this in a client component ('use client').
- * NEVER expose the service_role key to the browser.
+ * Uses the secret key (new API key format, replaces service_role) —
+ * BYPASSES Row Level Security. NEVER import this in a client component
+ * ('use client'). NEVER expose it to the browser.
  *
  * Use this for:
  * - Admin operations (creating users, deleting records)
@@ -43,17 +49,21 @@ export function createBrowserClient(): SupabaseClient {
  * - Background jobs and webhooks
  */
 export function createServerClient(): SupabaseClient {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const url =
+    process.env.NEXT_PUBLIC_SUPABASE_URL ??
+    (process.env.SUPABASE_URL as string | undefined)
+  const secretKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ??
+    (process.env.SUPABASE_SECRET_KEY as string | undefined)
 
-  if (!url || !serviceKey) {
+  if (!url || !secretKey) {
     throw new Error(
       'Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. ' +
       'Check your .env file.'
     )
   }
 
-  return createClient(url, serviceKey, {
+  return createClient(url, secretKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,

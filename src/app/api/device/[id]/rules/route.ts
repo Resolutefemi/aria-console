@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { getAdminClient, serialize } from '@/lib/db'
 
 /**
  * GET /api/device/[id]/rules
@@ -11,11 +11,15 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const rules = await db.parentalRule.findMany({
-      where: { deviceId: id, isActive: true },
-      orderBy: { createdAt: 'desc' },
-    })
-    return NextResponse.json({ rules })
+    const { data, error } = await getAdminClient()
+      .from('parental_rules')
+      .select('*')
+      .eq('device_id', id)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return NextResponse.json({ rules: serialize(data ?? []) })
   } catch (error) {
     console.error('GET /api/device/[id]/rules error:', error)
     return NextResponse.json({ error: 'Failed to fetch rules' }, { status: 500 })
@@ -41,16 +45,19 @@ export async function POST(
       return NextResponse.json({ error: 'type, config, and createdBy are required' }, { status: 400 })
     }
 
-    const rule = await db.parentalRule.create({
-      data: {
-        deviceId: id,
+    const { data: rule, error } = await getAdminClient()
+      .from('parental_rules')
+      .insert({
+        device_id: id,
         type,
         config,
-        createdBy,
-      },
-    })
+        created_by: createdBy,
+      })
+      .select()
+      .single()
 
-    return NextResponse.json({ rule }, { status: 201 })
+    if (error) throw error
+    return NextResponse.json({ rule: serialize(rule) }, { status: 201 })
   } catch (error) {
     console.error('POST /api/device/[id]/rules error:', error)
     return NextResponse.json({ error: 'Failed to create rule' }, { status: 500 })
@@ -74,12 +81,15 @@ export async function DELETE(
       return NextResponse.json({ error: 'ruleId is required' }, { status: 400 })
     }
 
-    const rule = await db.parentalRule.update({
-      where: { id: ruleId },
-      data: { isActive: false },
-    })
+    const { data: rule, error } = await getAdminClient()
+      .from('parental_rules')
+      .update({ is_active: false })
+      .eq('id', ruleId)
+      .select()
+      .single()
 
-    return NextResponse.json({ rule })
+    if (error) throw error
+    return NextResponse.json({ rule: serialize(rule) })
   } catch (error) {
     console.error('DELETE /api/device/[id]/rules error:', error)
     return NextResponse.json({ error: 'Failed to delete rule' }, { status: 500 })

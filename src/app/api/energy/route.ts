@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { getAdminClient, serialize } from '@/lib/db'
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,20 +8,24 @@ export async function GET(request: NextRequest) {
     const now = new Date()
     const since = new Date(now.getTime() - hours * 60 * 60 * 1000)
 
-    const readings = await db.energyReading.findMany({
-      where: { recordedAt: { gte: since } },
-      include: { device: { select: { name: true, id: true } } },
-      orderBy: { recordedAt: 'asc' },
-    })
+    const { data: readings, error } = await getAdminClient()
+      .from('energy_readings')
+      .select('*, device:devices(name, id)')
+      .gte('recorded_at', since.toISOString())
+      .order('recorded_at', { ascending: true })
+
+    if (error) throw error
+    const rows = serialize<{ recordedAt: string; kilowatts: number; wattHours: number; deviceId: string; device: { name: string; id: string } | null }[]>(readings ?? [])
 
     // Aggregate by hour
     const hourly: { t: string; kw: number }[] = []
     for (let h = hours - 1; h >= 0; h--) {
       const hourStart = new Date(now.getTime() - h * 60 * 60 * 1000)
       const hourEnd = new Date(hourStart.getTime() + 60 * 60 * 1000)
-      const inHour = readings.filter(
-        (r) => r.recordedAt >= hourStart && r.recordedAt < hourEnd
-      )
+      const inHour = rows.filter((r) => {
+        const t = new Date(r.recordedAt).getTime()
+        return t >= hourStart.getTime() && t < hourEnd.getTime()
+      })
       const avgKw = inHour.length > 0
         ? inHour.reduce((s, r) => s + r.kilowatts, 0) / inHour.length
         : 0
@@ -33,8 +37,9 @@ export async function GET(request: NextRequest) {
 
     // Per-device breakdown
     const deviceMap = new Map<string, { name: string; kwh: number }>()
-    for (const r of readings) {
-      const existing = deviceMap.get(r.deviceId) ?? { name: r.device.name, kwh: 0 }
+    for (const r of rows) {
+      const name = r.device?.name ?? 'Unknown'
+      const existing = deviceMap.get(r.deviceId) ?? { name, kwh: 0 }
       existing.kwh += r.wattHours / 1000 // Wh to kWh
       deviceMap.set(r.deviceId, existing)
     }
@@ -54,7 +59,7 @@ export async function GET(request: NextRequest) {
     const peakHourIdx = hourly.findIndex((h) => h.kw === peakKw)
     const peakHour = peakHourIdx >= 0 ? hourly[peakHourIdx].t : '00'
 
-    // Estimate monthly cost: 0.025 USD/kWh equivalent in NGN ~ 38 NGN/kWh
+    // Estimate monthly cost: ~38 NGN/kWh
     const estimatedMonthlyCost = Math.round(totalKwh * 30 * 38)
 
     return NextResponse.json({

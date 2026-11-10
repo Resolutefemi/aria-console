@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { getAdminClient, serialize } from '@/lib/db'
 
 export async function GET(request: NextRequest) {
   try {
@@ -7,14 +7,18 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') ?? '50'), 200)
     const action = searchParams.get('action')
 
-    const logs = await db.auditLog.findMany({
-      where: action ? { action } : {},
-      include: { user: { select: { name: true, email: true } } },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    })
+    let query = getAdminClient()
+      .from('audit_logs')
+      .select('*, user:users(name, email)')
+      .order('created_at', { ascending: false })
+      .limit(limit)
 
-    return NextResponse.json({ logs })
+    if (action) query = query.eq('action', action)
+
+    const { data, error } = await query
+    if (error) throw error
+
+    return NextResponse.json({ logs: serialize(data ?? []) })
   } catch (error) {
     console.error('GET /api/audit-logs error:', error)
     return NextResponse.json({ error: 'Failed to fetch audit logs' }, { status: 500 })
@@ -26,19 +30,23 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { action, resource, resourceId, metadata, userId, ipAddress, userAgent } = body
 
-    const log = await db.auditLog.create({
-      data: {
+    const { data: log, error } = await getAdminClient()
+      .from('audit_logs')
+      .insert({
         action,
         resource,
-        resourceId,
+        resource_id: resourceId ?? null,
         metadata: metadata ?? null,
-        userId,
-        ipAddress,
-        userAgent,
-      },
-    })
+        user_id: userId ?? null,
+        ip_address: ipAddress ?? null,
+        user_agent: userAgent ?? null,
+      })
+      .select()
+      .single()
 
-    return NextResponse.json({ log }, { status: 201 })
+    if (error) throw error
+
+    return NextResponse.json({ log: serialize(log) }, { status: 201 })
   } catch (error) {
     console.error('POST /api/audit-logs error:', error)
     return NextResponse.json({ error: 'Failed to create audit log' }, { status: 500 })

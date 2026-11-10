@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { getAdminClient, serialize } from '@/lib/db'
 import { recordAuditLog, AUDIT_ACTIONS } from '@/lib/audit'
 
 export async function PATCH(
@@ -11,17 +11,21 @@ export async function PATCH(
     const body = await request.json()
     const { status, acknowledgedBy } = body
 
-    const alert = await db.securityAlert.update({
-      where: { id },
-      data: {
-        status,
-        ...(status === 'ACKNOWLEDGED' && {
-          acknowledgedAt: new Date(),
-          acknowledgedBy: acknowledgedBy ?? 'system',
-        }),
-      },
-      include: { device: { select: { name: true, deviceId: true } } },
-    })
+    const updates: Record<string, unknown> = { status }
+    if (status === 'ACKNOWLEDGED') {
+      updates.acknowledged_at = new Date().toISOString()
+      updates.acknowledged_by = acknowledgedBy ?? 'system'
+    }
+
+    const admin = getAdminClient()
+    const { data: alert, error } = await admin
+      .from('security_alerts')
+      .update(updates)
+      .eq('id', id)
+      .select('*, device:devices(name, device_id)')
+      .single()
+
+    if (error) throw error
 
     // Record in audit log
     await recordAuditLog({
@@ -31,7 +35,7 @@ export async function PATCH(
       metadata: { status, acknowledgedBy, alertTitle: alert.title },
     })
 
-    return NextResponse.json({ alert })
+    return NextResponse.json({ alert: serialize(alert) })
   } catch (error) {
     console.error('PATCH /api/security/alerts/[id] error:', error)
     return NextResponse.json(

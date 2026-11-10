@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { getServerClient } from '@/lib/supabase'
+import { getAdminClient, getAuthContext, serialize, countOf } from '@/lib/db'
 
 /**
  * GET /api/devices
@@ -11,8 +10,8 @@ import { getServerClient } from '@/lib/supabase'
  * - status=ONLINE: filter by status
  * - room=Kitchen: filter by room
  * - deviceId=D-001: filter by human-readable device ID
- * - id=<cuid>: filter by primary key
- * - all=true: return ALL devices (admin only — requires service role)
+ * - id=<uuid>: filter by primary key
+ * - all=true: return ALL devices (admin only)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -24,20 +23,43 @@ export async function GET(request: NextRequest) {
     const paired = searchParams.get('paired')
     const all = searchParams.get('all')
 
+    const admin = getAdminClient()
+
     // Determine the current user from the auth token
     let currentUserId: string | null = null
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
+    let currentUserRole: string | null = null
 
-    if (token) {
-      try {
-        const supabase = getServerClient()
-        const { data: { user } } = await supabase.auth.getUser(token)
-        if (user?.email) {
-          const dbUser = await db.user.findUnique({ where: { email: user.email } })
-          if (dbUser) currentUserId = dbUser.id
-        }
-      } catch {}
+    const ctx = await getAuthContext(request.headers.get('authorization'))
+    if (ctx) {
+      currentUserId = ctx.dbUser.id
+      currentUserRole = ctx.dbUser.role
+    }
+
+    const DEVICE_COUNTS =
+      'voice_commands(count), energy_readings(count), security_alerts(count), screen_time_sessions(count), location_pings(count), web_history(count), device_apps(count)'
+
+    function toDeviceWithCounts(device: any) {
+      const s = serialize(device)
+      return {
+        ...s,
+        _count: {
+          voiceCommands: countOf(device.voice_commands),
+          energyReadings: countOf(device.energy_readings),
+          securityAlerts: countOf(device.security_alerts),
+          screenTimeSessions: countOf(device.screen_time_sessions),
+          locationPings: countOf(device.location_pings),
+          webHistory: countOf(device.web_history),
+          apps: countOf(device.device_apps),
+        },
+      }
+    }
+
+    function matchesFilters(d: any): boolean {
+      if (status && d.status !== status) return false
+      if (room && d.room !== room) return false
+      if (deviceId && d.deviceId !== deviceId) return false
+      if (id && d.id !== id) return false
+      return true
     }
 
     // If paired=true, only return devices paired to the current user
@@ -46,66 +68,42 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ devices: [], error: 'Not authenticated' }, { status: 401 })
       }
 
-      const pairings = await db.devicePairing.findMany({
-        where: {
-          status: 'PAIRED',
-          parentId: currentUserId, // ← KEY FIX: only this user's devices
-        },
-        include: {
-          device: {
-            include: {
-              _count: {
-                select: {
-                  voiceCommands: true,
-                  energyReadings: true,
-                  securityAlerts: true,
-                  screenTimeSessions: true,
-                  locationPings: true,
-                  webHistory: true,
-                  apps: true,
-                },
-              },
-            },
-          },
-        },
-        orderBy: { pairedAt: 'desc' },
-      })
+      const { data: pairings, error } = await admin
+        .from('device_pairings')
+        .select(
+          `paired_at, device:devices(*, ${DEVICE_COUNTS})`
+        )
+        .eq('status', 'PAIRED')
+        .eq('parent_id', currentUserId)
+        .order('paired_at', { ascending: false })
 
-      const devices = pairings
-        .map((p) => p.device)
-        .filter((d): d is NonNullable<typeof d> => d !== null)
-        .filter((d) => {
-          if (status && d.status !== status) return false
-          if (room && d.room !== room) return false
-          if (deviceId && d.deviceId !== deviceId) return false
-          if (id && d.id !== id) return false
-          return true
-        })
+      if (error) throw error
+
+      const devices = (pairings ?? [])
+        .map((p: any) => p.device)
+        .filter((d: any) => d !== null)
+        .map(toDeviceWithCounts)
+        .filter(matchesFilters)
 
       return NextResponse.json({ devices })
     }
 
     // Non-paired query: if all=true and user is admin, return everything
-    // Otherwise, return only the current user's paired devices
-    if (all === 'true' && currentUserId) {
-      const dbUser = await db.user.findUnique({ where: { id: currentUserId } })
-      if (dbUser?.role === 'ADMIN') {
-        const devices = await db.device.findMany({
-          where: {
-            ...(status ? { status: status as any } : {}),
-            ...(room ? { room } : {}),
-            ...(deviceId ? { deviceId } : {}),
-            ...(id ? { id } : {}),
-          },
-          include: {
-            _count: {
-              select: { voiceCommands: true, energyReadings: true, securityAlerts: true },
-            },
-          },
-          orderBy: { lastSeenAt: 'desc' },
-        })
-        return NextResponse.json({ devices })
-      }
+    if (all === 'true' && currentUserId && currentUserRole === 'ADMIN') {
+      let query = admin
+        .from('devices')
+        .select(`*, ${DEVICE_COUNTS}`)
+        .order('last_seen_at', { ascending: false })
+      if (status) query = query.eq('status', status)
+      if (room) query = query.eq('room', room)
+      if (deviceId) query = query.eq('device_id', deviceId)
+      if (id) query = query.eq('id', id)
+
+      const { data, error } = await query
+      if (error) throw error
+
+      const devices = (data ?? []).map(toDeviceWithCounts)
+      return NextResponse.json({ devices })
     }
 
     // Default: return current user's paired devices
@@ -113,31 +111,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ devices: [] })
     }
 
-    const pairings = await db.devicePairing.findMany({
-      where: { status: 'PAIRED', parentId: currentUserId },
-      include: {
-        device: {
-          include: {
-            _count: {
-              select: {
-                voiceCommands: true,
-                energyReadings: true,
-                securityAlerts: true,
-                screenTimeSessions: true,
-                locationPings: true,
-                webHistory: true,
-                apps: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: { pairedAt: 'desc' },
-    })
+    const { data: pairings, error } = await admin
+      .from('device_pairings')
+      .select(`paired_at, device:devices(*, ${DEVICE_COUNTS})`)
+      .eq('status', 'PAIRED')
+      .eq('parent_id', currentUserId)
+      .order('paired_at', { ascending: false })
 
-    const devices = pairings
-      .map((p) => p.device)
-      .filter((d): d is NonNullable<typeof d> => d !== null)
+    if (error) throw error
+
+    const devices = (pairings ?? [])
+      .map((p: any) => p.device)
+      .filter((d: any) => d !== null)
+      .map(toDeviceWithCounts)
 
     return NextResponse.json({ devices })
   } catch (error) {

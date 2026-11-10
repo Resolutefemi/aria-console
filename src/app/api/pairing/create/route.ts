@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { getAdminClient, serialize } from '@/lib/db'
 
 /**
  * POST /api/pairing/create
  * Parent calls this to generate a pairing code.
  * Body: { parentId, deviceName, deviceType }
- * Returns: { shortCode, expiresAt }
+ * Returns: { pairingId, shortCode, expiresAt }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -22,19 +22,24 @@ export async function POST(request: NextRequest) {
     // Generate a 6-digit short code
     const shortCode = Math.floor(100000 + Math.random() * 900000).toString()
 
-    const pairing = await db.devicePairing.create({
-      data: {
+    const { data: pairing, error } = await getAdminClient()
+      .from('device_pairings')
+      .insert({
         code: Math.random().toString(36).slice(2, 12).toUpperCase(),
-        shortCode,
-        parentId,
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 min
-      },
-    })
+        short_code: shortCode,
+        parent_id: parentId,
+        expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+      })
+      .select()
+      .single()
 
+    if (error) throw error
+
+    const s = serialize(pairing)
     return NextResponse.json({
-      pairingId: pairing.id,
-      shortCode: pairing.shortCode,
-      expiresAt: pairing.expiresAt,
+      pairingId: s.id,
+      shortCode: s.shortCode,
+      expiresAt: s.expiresAt,
     })
   } catch (error) {
     console.error('POST /api/pairing/create error:', error)

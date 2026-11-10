@@ -2,7 +2,7 @@
 
 Operations dashboard for a voice-controlled smartphone system. Monitor devices, voice interactions, energy usage, and security alerts from a single web interface designed for both quick triage and deep investigation.
 
-![Aria Console](https://img.shields.io/badge/Next.js-16-black) ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue) ![Prisma](https://img.shields.io/badge/Prisma-6-indigo) ![Tailwind](https://img.shields.io/badge/Tailwind-4-cyan) ![License](https://img.shields.io/badge/license-MIT-green)
+![Aria Console](https://img.shields.io/badge/Next.js-16-black) ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue) ![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20Auth-3ECF8E) ![Tailwind](https://img.shields.io/badge/Tailwind-4-cyan) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ## Features
 
@@ -54,7 +54,7 @@ Operations dashboard for a voice-controlled smartphone system. Monitor devices, 
 - **Framework**: Next.js 16 (App Router, Turbopack)
 - **Language**: TypeScript 5 (strict mode)
 - **Styling**: Tailwind CSS 4 with shadcn/ui (New York style)
-- **Database**: Prisma ORM with SQLite (local) or Supabase Postgres (production)
+- **Database**: Supabase (Postgres + Auth + REST) via `@supabase/supabase-js`
 - **Charts**: Recharts
 - **Icons**: Lucide
 - **Animations**: Framer Motion
@@ -65,7 +65,7 @@ Operations dashboard for a voice-controlled smartphone system. Monitor devices, 
 ### Prerequisites
 
 - Node.js 20+ or Bun 1.0+
-- A Supabase account (optional — SQLite works for local dev)
+- A Supabase project (https://supabase.com — the only database, no local DB needed)
 
 ### Installation
 
@@ -77,13 +77,11 @@ cd aria-console
 # Install dependencies
 bun install
 
-# Copy env template
+# Copy env template and fill in your Supabase project credentials
 cp .env.example .env
 
-# Set up the database (SQLite local)
-bun run db:generate
-bun run db:push
-bun run db:seed
+# Apply the schema to Supabase (Dashboard → SQL Editor → paste → Run)
+cat supabase/migrations/0001_full_schema.sql
 
 # Start the dev server
 bun run dev
@@ -91,40 +89,31 @@ bun run dev
 
 Open http://localhost:3000 to view the dashboard.
 
-### Default login
+### Account creation (Supabase Auth)
 
-The seed script creates one admin user:
-- Email: `ola.kperogi@aria.example`
-- Role: ADMIN
+All sign-up/sign-in goes through Supabase Auth:
 
-(No password — auth is not yet implemented. The console runs in single-user mode for demo purposes.)
+- **First account becomes ADMIN** automatically (console bootstrap) — register via the **Sign Up** tab on `/login`.
+- After the first user, self-signups get the `MEMBER` role; admins can create additional operators with a chosen role via `POST /api/users` (which provisions them in Supabase Auth and returns a temporary password).
+- Email confirmation uses Supabase's built-in flow. To skip it during development, disable **Confirm email** in *Supabase Dashboard → Authentication → Providers*.
 
 ## Database
 
-### Local development (SQLite)
+Everything runs on **Supabase** — Postgres for data, GoTrue for auth, PostgREST for queries:
 
-The default `DATABASE_URL` in `.env` points to `file:./prisma/dev.db`. Prisma auto-creates this file on `db:push`.
+- **Server API routes** use the secret key (`SUPABASE_SERVICE_ROLE_KEY`) — full access, bypasses RLS.
+- **Browser** uses the publishable key (`NEXT_PUBLIC_SUPABASE_ANON_KEY`) — sessions, realtime, RLS-restricted queries.
+- `public.users` is a profile table synced 1:1 with `auth.users` by a trigger (`handle_new_user`) — the first account gets `ADMIN`, later signups follow their user metadata role.
 
-### Production (Supabase Postgres)
+### Applying the schema
 
-1. Create a new Supabase project at https://supabase.com
-2. Update `.env` with your Supabase credentials:
-   ```env
-   DATABASE_URL="postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
-   DIRECT_URL="postgresql://postgres.<ref>:<password>@aws-0-<region>.supabase.com:5432/postgres"
-   NEXT_PUBLIC_SUPABASE_URL="https://your-project-ref.supabase.co"
-   NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
-   SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
-   ```
-3. Change the Prisma provider from `sqlite` to `postgresql` in `prisma/schema.prisma`
-4. Apply the schema: `bun run db:push` or `bun run db:migrate deploy`
-5. Run the seed: `bun run db:seed`
+One idempotent file: [`supabase/migrations/0001_full_schema.sql`](./supabase/migrations/0001_full_schema.sql) — enums, 13 tables, indexes, `updated_at` triggers, the auth-sync triggers, and non-recursive RLS policies.
 
-### Alternative SQL schema
+1. Open Supabase Dashboard → **SQL Editor** → **New query**
+2. Paste the file contents → **Run**
+3. (Alternative) `psql "$SUPABASE_CONNECTION_STRING" -f supabase/migrations/0001_full_schema.sql`
 
-The `supabase/migrations/` directory contains raw SQL that mirrors the Prisma schema. You can paste these into the Supabase SQL Editor if you prefer not to use Prisma migrations.
-
-See [`supabase/README.md`](./supabase/README.md) for full deployment instructions and RLS policy reference.
+See [`supabase/README.md`](./supabase/README.md) for the full deployment guide and RLS policy reference.
 
 ### Database GUIs
 
@@ -168,17 +157,15 @@ The dashboard applies five interface design principles, documented in an in-app 
 
 ```
 .
-├── prisma/
-│   ├── schema.prisma       # Prisma schema (Device, VoiceCommand, EnergyReading, SecurityAlert, User, AuditLog)
-│   └── seed.ts             # Seed script with 30 devices, 7 commands, energy readings, 6 alerts
 ├── src/
 │   ├── app/
-│   │   ├── api/            # API routes (devices, voice, energy, security, audit-logs, stats)
+│   │   ├── api/            # API routes (devices, voice, energy, security, audit-logs, stats) — all backed by Supabase
 │   │   ├── globals.css     # Tailwind theme tokens (warm dark + light)
 │   │   ├── layout.tsx      # Root layout with Geist fonts
 │   │   └── page.tsx        # Dashboard page
 │   ├── components/
 │   │   ├── ui/             # 48 shadcn/ui primitives (New York style)
+│   │   ├── auth/           # AuthProvider — Supabase Auth session + profile sync
 │   │   └── dashboard/      # Feature components (sidebar, top-bar, stats, devices, voice, energy, security, etc.)
 │   ├── hooks/
 │   │   ├── use-api.ts      # Generic data-fetching hook with polling
@@ -186,12 +173,15 @@ The dashboard applies five interface design principles, documented in an in-app 
 │   │   ├── use-mobile.ts
 │   │   └── use-toast.ts
 │   └── lib/
-│       ├── db.ts           # Prisma client singleton
+│       ├── supabase.ts     # Supabase client factory (publishable / secret keys)
+│       ├── db.ts           # Admin client singleton + row serializer + auth context helper
+│       ├── audit.ts        # Audit log writer
 │       ├── csv.ts          # CSV export utilities
 │       └── utils.ts        # cn() class name merge
 ├── supabase/
 │   ├── README.md           # Supabase deployment guide
-│   └── migrations/         # Raw SQL migrations (0001 through 0007)
+│   └── migrations/
+│       └── 0001_full_schema.sql  # Canonical schema (tables, RLS, auth triggers)
 ├── .env.example            # Environment variable template
 ├── package.json
 └── README.md
@@ -205,11 +195,7 @@ The dashboard applies five interface design principles, documented in an in-app 
 | `bun run build` | Production build |
 | `bun run start` | Start production server |
 | `bun run lint` | Run ESLint |
-| `bun run db:generate` | Generate Prisma client |
-| `bun run db:push` | Push schema to database |
-| `bun run db:migrate` | Create and apply migration |
-| `bun run db:seed` | Seed database with sample data |
-| `bun run db:reset` | Reset database (destructive) |
+| `bun run db:schema` | Print the canonical Supabase schema file |
 
 ## License
 
@@ -219,7 +205,6 @@ MIT © Resolutefemi
 
 - [Next.js](https://nextjs.org/) — React framework
 - [shadcn/ui](https://ui.shadcn.com/) — Component library
-- [Prisma](https://www.prisma.io/) — Type-safe ORM
-- [Supabase](https://supabase.com/) — Postgres + Auth + Storage
+- [Supabase](https://supabase.com/) — Postgres + Auth + REST (the only database)
 - [Recharts](https://recharts.org/) — Charting library
 - [Lucide](https://lucide.dev/) — Icon library

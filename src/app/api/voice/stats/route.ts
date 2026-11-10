@@ -1,31 +1,35 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { getAdminClient, serialize } from '@/lib/db'
 
 export async function GET() {
   try {
+    const admin = getAdminClient()
     const now = new Date()
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const startOf7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-    const [todayCommands, allTodayCommands, last7Days] = await Promise.all([
-      db.voiceCommand.aggregate({
-        where: { issuedAt: { gte: startOfToday } },
-        _avg: { confidence: true },
-        _count: true,
-      }),
-      db.voiceCommand.groupBy({
-        by: ['status'],
-        where: { issuedAt: { gte: startOfToday } },
-        _count: true,
-      }),
-      db.voiceCommand.findMany({
-        where: { issuedAt: { gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) } },
-        select: { issuedAt: true, status: true },
-      }),
-    ])
+    const { data, error } = await admin
+      .from('voice_commands')
+      .select('issued_at, status, confidence')
+      .gte('issued_at', startOf7d.toISOString())
 
-    const successCount = allTodayCommands.find((g) => g.status === 'SUCCESS')?._count ?? 0
-    const totalCount = todayCommands._count
+    if (error) throw error
+    const commands = serialize<{
+      issuedAt: string
+      status: string
+      confidence: number
+    }[]>(data ?? [])
+
+    const today = commands.filter(
+      (c) => new Date(c.issuedAt).getTime() >= startOfToday.getTime()
+    )
+    const totalCount = today.length
+    const successCount = today.filter((c) => c.status === 'SUCCESS').length
     const successRate = totalCount > 0 ? Math.round((successCount / totalCount) * 100) : 0
+    const avgConfidence =
+      totalCount > 0
+        ? today.reduce((s, c) => s + c.confidence, 0) / totalCount
+        : 0
 
     // Build 7-day sparkline data
     const dailyCounts: { date: string; count: number }[] = []
@@ -33,9 +37,10 @@ export async function GET() {
       const day = new Date(now.getTime() - i * 24 * 60 * 60 * 1000)
       const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate())
       const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000)
-      const count = last7Days.filter(
-        (c) => c.issuedAt >= dayStart && c.issuedAt < dayEnd
-      ).length
+      const count = commands.filter((c) => {
+        const t = new Date(c.issuedAt).getTime()
+        return t >= dayStart.getTime() && t < dayEnd.getTime()
+      }).length
       dailyCounts.push({
         date: dayStart.toISOString().slice(0, 10),
         count,
@@ -44,7 +49,7 @@ export async function GET() {
 
     return NextResponse.json({
       todayCount: totalCount,
-      avgConfidence: todayCommands._avg.confidence ?? 0,
+      avgConfidence: parseFloat(avgConfidence.toFixed(2)),
       successRate,
       dailyCounts,
     })

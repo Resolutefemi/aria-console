@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { getAdminClient, serialize } from '@/lib/db'
 
 /**
  * POST /api/device/report
@@ -22,91 +22,87 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'deviceId and type are required' }, { status: 400 })
     }
 
+    const admin = getAdminClient()
+
     // Verify device exists
-    const device = await db.device.findUnique({ where: { id: deviceId } })
+    const { data: device, error: deviceError } = await admin
+      .from('devices')
+      .select('*')
+      .eq('id', deviceId)
+      .maybeSingle()
+
+    if (deviceError) throw deviceError
     if (!device) {
       return NextResponse.json({ error: 'Device not found' }, { status: 404 })
     }
 
     switch (type) {
       case 'SCREEN_TIME': {
-        await db.screenTimeSession.create({
-          data: {
-            deviceId: device.id,
-            appPackage: data.appPackage,
-            appName: data.appName,
-            startedAt: new Date(data.startedAt),
-            endedAt: data.endedAt ? new Date(data.endedAt) : null,
-            durationSec: data.durationSec ?? null,
-          },
+        const { error } = await admin.from('screen_time_sessions').insert({
+          device_id: device.id,
+          app_package: data.appPackage,
+          app_name: data.appName,
+          started_at: new Date(data.startedAt).toISOString(),
+          ended_at: data.endedAt ? new Date(data.endedAt).toISOString() : null,
+          duration_sec: data.durationSec ?? null,
         })
+        if (error) throw error
         break
       }
 
       case 'LOCATION': {
-        await db.locationPing.create({
-          data: {
-            deviceId: device.id,
-            latitude: data.latitude,
-            longitude: data.longitude,
-            accuracy: data.accuracy ?? null,
-            speed: data.speed ?? null,
-            heading: data.heading ?? null,
-            address: data.address ?? null,
-            battery: data.battery ?? null,
-          },
+        const { error } = await admin.from('location_pings').insert({
+          device_id: device.id,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          accuracy: data.accuracy ?? null,
+          speed: data.speed ?? null,
+          heading: data.heading ?? null,
+          address: data.address ?? null,
+          battery: data.battery ?? null,
         })
+        if (error) throw error
         break
       }
 
       case 'WEB_HISTORY': {
-        await db.webHistoryEntry.create({
-          data: {
-            deviceId: device.id,
-            url: data.url,
-            title: data.title ?? null,
-            category: data.category ?? null,
-            isBlocked: data.isBlocked ?? false,
-          },
+        const { error } = await admin.from('web_history').insert({
+          device_id: device.id,
+          url: data.url,
+          title: data.title ?? null,
+          category: data.category ?? null,
+          is_blocked: data.isBlocked ?? false,
         })
+        if (error) throw error
         break
       }
 
       case 'APP_LIST': {
         // Upsert each app
-        for (const app of data.apps) {
-          await db.deviceApp.upsert({
-            where: {
-              deviceId_packageName: {
-                deviceId: device.id,
-                packageName: app.packageName,
-              },
-            },
-            update: {
-              appName: app.appName,
-              category: app.category ?? 'Other',
-            },
-            create: {
-              deviceId: device.id,
-              packageName: app.packageName,
-              appName: app.appName,
-              category: app.category ?? 'Other',
-            },
-          })
-        }
+        const rows = data.apps.map((app: any) => ({
+          device_id: device.id,
+          package_name: app.packageName,
+          app_name: app.appName,
+          category: app.category ?? 'Other',
+        }))
+        const { error } = await admin
+          .from('device_apps')
+          .upsert(rows, { onConflict: 'device_id,package_name' })
+        if (error) throw error
         break
       }
 
       case 'HEARTBEAT': {
-        await db.device.update({
-          where: { id: device.id },
-          data: {
+        const { error } = await admin
+          .from('devices')
+          .update({
             battery: data.battery ?? device.battery,
             signal: data.signal ?? device.signal,
             status: data.status ?? 'ONLINE',
-            lastSeenAt: new Date(),
-          },
-        })
+            last_seen_at: new Date().toISOString(),
+          })
+          .eq('id', device.id)
+        if (error) throw error
         break
       }
 
@@ -133,29 +129,47 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'deviceId is required' }, { status: 400 })
     }
 
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000) // last 24h
+    const admin = getAdminClient()
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() // last 24h
 
     const [screenTime, location, webHistory, apps] = await Promise.all([
-      db.screenTimeSession.findMany({
-        where: { deviceId, startedAt: { gte: since } },
-        orderBy: { startedAt: 'desc' },
-        take: 100,
-      }),
-      db.locationPing.findFirst({
-        where: { deviceId },
-        orderBy: { recordedAt: 'desc' },
-      }),
-      db.webHistoryEntry.findMany({
-        where: { deviceId, visitedAt: { gte: since } },
-        orderBy: { visitedAt: 'desc' },
-        take: 50,
-      }),
-      db.deviceApp.findMany({ where: { deviceId } }),
+      admin
+        .from('screen_time_sessions')
+        .select('*')
+        .eq('device_id', deviceId)
+        .gte('started_at', since)
+        .order('started_at', { ascending: false })
+        .limit(100),
+      admin
+        .from('location_pings')
+        .select('*')
+        .eq('device_id', deviceId)
+        .order('recorded_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      admin
+        .from('web_history')
+        .select('*')
+        .eq('device_id', deviceId)
+        .gte('visited_at', since)
+        .order('visited_at', { ascending: false })
+        .limit(50),
+      admin.from('device_apps').select('*').eq('device_id', deviceId),
     ])
+
+    if (screenTime.error) throw screenTime.error
+    if (webHistory.error) throw webHistory.error
+    if (apps.error) throw apps.error
+
+    const sessions = serialize<{
+      appPackage: string
+      appName: string
+      durationSec: number | null
+    }[]>(screenTime.data ?? [])
 
     // Aggregate screen time by app
     const appUsage = new Map<string, { name: string; totalSec: number; sessions: number }>()
-    for (const s of screenTime) {
+    for (const s of sessions) {
       const existing = appUsage.get(s.appPackage) ?? { name: s.appName, totalSec: 0, sessions: 0 }
       existing.totalSec += s.durationSec ?? 0
       existing.sessions += 1
@@ -176,10 +190,10 @@ export async function GET(request: NextRequest) {
         .sort((a, b) => b.totalSec - a.totalSec),
       totalScreenTimeSec,
       totalScreenTimeMin: Math.round(totalScreenTimeSec / 60),
-      lastLocation: location,
-      webHistory,
-      apps,
-      sessionCount: screenTime.length,
+      lastLocation: location.data ? serialize(location.data) : null,
+      webHistory: serialize(webHistory.data ?? []),
+      apps: serialize(apps.data ?? []),
+      sessionCount: sessions.length,
     })
   } catch (error) {
     console.error('GET /api/device/report error:', error)

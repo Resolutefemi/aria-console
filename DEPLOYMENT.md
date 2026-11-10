@@ -1,6 +1,7 @@
 # Deployment Guide — Aria Console
 
-This guide covers deploying Aria Console to production, with a focus on Supabase as the database backend.
+This guide covers deploying Aria Console to production, with Supabase as the
+only database (Postgres + Auth + REST — there is no local/second database).
 
 ## Option A: Vercel + Supabase (recommended)
 
@@ -10,48 +11,40 @@ This guide covers deploying Aria Console to production, with a focus on Supabase
 2. Wait for provisioning to complete (~2 minutes)
 3. Go to **Project Settings → API**:
    - Note the **Project URL** (`NEXT_PUBLIC_SUPABASE_URL`)
-   - Note the **anon public** key (`NEXT_PUBLIC_SUPABASE_ANON_KEY`)
-   - Note the **service_role** key (`SUPABASE_SERVICE_ROLE_KEY`) — keep this secret!
-4. Go to **Project Settings → Database**:
-   - Note the **Connection string** (pooled, port 6543) → `DATABASE_URL`
-   - Note the **Connection string** (direct, port 5432) → `DIRECT_URL`
+   - Note the **publishable** key (`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `sb_publishable_…`)
+   - Note the **secret** key (`SUPABASE_SERVICE_ROLE_KEY`, `sb_secret_…`) — keep this secret!
+4. No connection strings needed for runtime — the app talks to Supabase over
+   HTTPS (PostgREST/GoTrue). Connection strings are only useful for psql/migrations.
 
 ### 2. Apply the schema
 
-Choose one of:
-
-**Option 1: SQL Editor (easiest)**
-
-Open the Supabase SQL Editor and paste each file from `supabase/migrations/` in order (0001 through 0007). Click Run after each.
-
-**Option 2: Prisma Migrate**
+Open the Supabase **SQL Editor**, paste the whole
+`supabase/migrations/0001_full_schema.sql` file and click **Run** (it is
+idempotent). Or with psql:
 
 ```bash
-# Update prisma/schema.prisma: change provider from "sqlite" to "postgresql"
-# Set DATABASE_URL and DIRECT_URL in .env
-bun run db:migrate deploy
-bun run db:seed
+psql "postgresql://postgres.<project-ref>:<password>@aws-1-<region>.pooler.supabase.com:5432/postgres" \
+  -f supabase/migrations/0001_full_schema.sql
 ```
 
 ### 3. Deploy to Vercel
 
 1. Push your repo to GitHub
 2. Go to https://vercel.com and import the repo
-3. Set environment variables (Project Settings → Environment Variables):
+3. Set environment variables (Project Settings → Environment Variables — see
+   `.env.vercel` for the template):
 
    | Variable | Value |
    |----------|-------|
-   | `DATABASE_URL` | Pooled Supabase connection string |
-   | `DIRECT_URL` | Direct Supabase connection string |
    | `NEXT_PUBLIC_SUPABASE_URL` | https://your-project-ref.supabase.co |
-   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon public key |
-   | `SUPABASE_SERVICE_ROLE_KEY` | service_role key |
+   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | publishable key (`sb_publishable_…`) |
+   | `SUPABASE_SERVICE_ROLE_KEY` | secret key (`sb_secret_…`) |
    | `NEXT_PUBLIC_APP_NAME` | Aria Console |
    | `NEXT_PUBLIC_APP_VERSION` | 4.2.1 |
-   | `NODE_ENV` | production |
 
 4. Deploy
-5. Visit your Vercel URL — the dashboard should load with seed data
+5. Visit your Vercel URL → open `/login` → **Sign Up** to create the first
+   (ADMIN) account
 
 ## Option B: Self-hosted (Docker)
 
@@ -65,67 +58,50 @@ docker build -t aria-console .
 
 ```bash
 docker run -p 3000:3000 \
-  -e DATABASE_URL="postgresql://..." \
-  -e DIRECT_URL="postgresql://..." \
   -e NEXT_PUBLIC_SUPABASE_URL="https://..." \
-  -e NEXT_PUBLIC_SUPABASE_ANON_KEY="..." \
-  -e SUPABASE_SERVICE_ROLE_KEY="..." \
+  -e NEXT_PUBLIC_SUPABASE_ANON_KEY="sb_publishable_..." \
+  -e SUPABASE_SERVICE_ROLE_KEY="sb_secret_..." \
   -e NODE_ENV=production \
   aria-console
 ```
 
-### 3. Apply schema and seed
+### 3. Apply the schema
 
-```bash
-docker exec -it <container_id> bun run db:migrate deploy
-docker exec -it <container_id> bun run db:seed
-```
+Apply `supabase/migrations/0001_full_schema.sql` to your Supabase project
+(SQL Editor or psql) — the container itself needs no database access.
 
 ## Verifying the deployment
 
-1. Visit `https://your-domain.com/api/health` — should return `{"status":"ok",...}`
-2. Visit `https://your-domain.com/` — dashboard should load with 30 devices
-3. Click any device card — detail drawer should open
+1. Visit `https://your-domain.com/api/health` — should return
+   `{"status":"ok","database":"connected (supabase)",...}`
+2. Visit `https://your-domain.com/login` — Sign Up creates the first ADMIN
+   account (or disable email confirmation first for instant signups)
+3. Pair a device via the companion app (`/companion`) — it appears on the
+   dashboard after pairing
 4. Press `Shift + ?` — shortcuts dialog should appear
 
 ## Troubleshooting
 
-### Database connection issues
+### Auth issues
 
-- Ensure `DATABASE_URL` uses port **6543** (pooler) for runtime queries
-- Ensure `DIRECT_URL` uses port **5432** (direct) for migrations
-- Check that `?pgbouncer=true&connection_limit=1` is appended to `DATABASE_URL`
-- Verify your Supabase project is not paused (free tier auto-pauses after inactivity)
+- **"Email address invalid"** — Supabase rejects `.test`/fake domains; use a
+  real address or disable email confirmation in *Authentication → Providers*.
+- **Signup works but sign-in says invalid credentials** — the email
+  confirmation is still pending; confirm via the email link or turn off
+  "Confirm email".
+- **First user is MEMBER, not ADMIN** — the ADMIN bootstrap applies to the
+  very first `auth.users` row; promote later users in SQL:
+  `update users set role = 'ADMIN' where email = '…';`
 
-### Prisma client errors
+### Database/API issues
 
-- Run `bun run db:generate` after changing the schema
-- Delete `.next/` and restart the dev server if you see stale type errors
-- Ensure `output` in `prisma/schema.prisma` points to `../node_modules/.prisma/client`
+- `api/health` returning `degraded` — check `SUPABASE_SERVICE_ROLE_KEY` and
+  `NEXT_PUBLIC_SUPABASE_URL` in the environment.
+- Missing rows in the browser but visible in Supabase Studio — RLS: direct
+  REST reads need authenticated JWTs; the dashboard's own calls go through
+  the server API routes.
 
 ### Hydration errors
 
 - The clock in the top bar uses `useSyncExternalStore` with a server snapshot of 0
 - If you see hydration mismatches, ensure you're not using `Date.now()` directly during render
-
-## Environment variable checklist
-
-Before going live, verify you have set:
-
-- [ ] `DATABASE_URL` (pooled Supabase connection)
-- [ ] `DIRECT_URL` (direct Supabase connection)
-- [ ] `NEXT_PUBLIC_SUPABASE_URL`
-- [ ] `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- [ ] `SUPABASE_SERVICE_ROLE_KEY` (server-only — never expose)
-- [ ] `NEXT_PUBLIC_APP_NAME`
-- [ ] `NEXT_PUBLIC_APP_VERSION`
-- [ ] `NODE_ENV=production`
-
-## Post-deployment tasks
-
-1. **Revoke the seed admin user** or change its email after first login
-2. **Set up Supabase Auth** for real user authentication (not yet implemented in this demo)
-3. **Configure backup schedule** in Supabase Dashboard → Database → Backups
-4. **Set up log drain** in Vercel for production monitoring
-5. **Configure custom domain** in Vercel Project Settings → Domains
-6. **Enable Vercel Analytics** for traffic insights

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { recordAuditLog, AUDIT_ACTIONS } from '@/lib/audit'
+import { getAdminClient, serialize } from '@/lib/db'
+import { recordAuditLog } from '@/lib/audit'
 
 /**
  * POST /api/device/[id]/command
@@ -20,20 +20,32 @@ export async function POST(
       return NextResponse.json({ error: 'type and sentBy are required' }, { status: 400 })
     }
 
+    const admin = getAdminClient()
+
     // Verify device exists
-    const device = await db.device.findUnique({ where: { id } })
+    const { data: device, error: deviceError } = await admin
+      .from('devices')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (deviceError) throw deviceError
     if (!device) {
       return NextResponse.json({ error: 'Device not found' }, { status: 404 })
     }
 
-    const command = await db.deviceCommand.create({
-      data: {
-        deviceId: device.id,
+    const { data: command, error } = await admin
+      .from('device_commands')
+      .insert({
+        device_id: device.id,
         type,
         payload: payload ?? null,
-        sentBy,
-      },
-    })
+        sent_by: sentBy,
+      })
+      .select()
+      .single()
+
+    if (error) throw error
 
     // Record in audit log
     await recordAuditLog({
@@ -44,7 +56,7 @@ export async function POST(
       userId: sentBy,
     })
 
-    return NextResponse.json({ command }, { status: 201 })
+    return NextResponse.json({ command: serialize(command) }, { status: 201 })
   } catch (error) {
     console.error('POST /api/device/[id]/command error:', error)
     return NextResponse.json({ error: 'Failed to send command' }, { status: 500 })

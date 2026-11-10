@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { getAdminClient, serialize } from '@/lib/db'
 import { recordAuditLog } from '@/lib/audit'
 
 /**
  * POST /api/device/[id]/smart-control
  * Control a smart device by voice command.
  *
- * Body: { deviceType, deviceName?, room?, command, params? }
+ * Body: { deviceType, deviceName?, room?, command, params?, sentBy? }
  *
  * Supports all smart device types:
  * - LIGHT: ON, OFF, SET_BRIGHTNESS, DIM, BRIGHTEN
@@ -30,8 +30,16 @@ export async function POST(
     const body = await request.json()
     const { deviceType, deviceName, room, command, params: cmdParams, sentBy } = body
 
+    const admin = getAdminClient()
+
     // Verify device exists
-    const device = await db.device.findUnique({ where: { id } })
+    const { data: device, error: deviceError } = await admin
+      .from('devices')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (deviceError) throw deviceError
     if (!device) {
       return NextResponse.json({ error: 'Device not found' }, { status: 404 })
     }
@@ -40,11 +48,12 @@ export async function POST(
     const commandType = mapSmartCommandToDeviceCommand(deviceType, command)
 
     // Create a device command (sentBy is required — use 'voice' if not provided)
-    const deviceCommand = await db.deviceCommand.create({
-      data: {
-        deviceId: device.id,
-        type: commandType as any,
-        sentBy: sentBy || 'voice-assistant',
+    const { data: deviceCommand, error: cmdError } = await admin
+      .from('device_commands')
+      .insert({
+        device_id: device.id,
+        type: commandType,
+        sent_by: sentBy || 'voice-assistant',
         payload: {
           deviceType,
           deviceName,
@@ -52,8 +61,11 @@ export async function POST(
           command,
           params: cmdParams,
         },
-      },
-    })
+      })
+      .select()
+      .single()
+
+    if (cmdError) throw cmdError
 
     // Record in audit log
     await recordAuditLog({
@@ -79,7 +91,7 @@ export async function POST(
 }
 
 function mapSmartCommandToDeviceCommand(deviceType: string, command: string): string {
-  // Map smart device commands to DeviceCommandType enum values
+  // Map smart device commands to device_command_type enum values
   if (deviceType === 'PHONE') {
     if (command === 'LOCK_DEVICE') return 'LOCK_DEVICE'
     if (command === 'UNLOCK_DEVICE') return 'UNLOCK_DEVICE'
@@ -97,9 +109,36 @@ function mapSmartCommandToDeviceCommand(deviceType: string, command: string): st
   }
 
   if (deviceType === 'SPEAKER') {
-    if (command === 'PLAY') return 'SEND_MESSAGE'
-    if (command === 'PAUSE') return 'SEND_MESSAGE'
-    if (command === 'STOP') return 'SEND_MESSAGE'
+    if (command === 'PLAY') return 'PLAY_MEDIA'
+    if (command === 'PAUSE') return 'PAUSE_MEDIA'
+    if (command === 'STOP') return 'STOP_MEDIA'
+  }
+
+  if (deviceType === 'VACUUM') {
+    if (command === 'START') return 'START_VACUUM'
+    if (command === 'STOP') return 'STOP_VACUUM'
+  }
+
+  if (deviceType === 'GARAGE') {
+    if (command === 'OPEN') return 'OPEN_GARAGE'
+    if (command === 'CLOSE') return 'CLOSE_GARAGE'
+  }
+
+  if (deviceType === 'LIGHT') {
+    if (command === 'ON') return 'TURN_ON'
+    if (command === 'OFF') return 'TURN_OFF'
+    if (command === 'SET_BRIGHTNESS') return 'SET_BRIGHTNESS'
+  }
+
+  if (deviceType === 'THERMOSTAT') {
+    if (command === 'SET_TEMPERATURE') return 'SET_TEMPERATURE'
+    if (command === 'ON') return 'TURN_ON'
+    if (command === 'OFF') return 'TURN_OFF'
+  }
+
+  if (deviceType === 'PLUG' || deviceType === 'TV') {
+    if (command === 'ON') return 'TURN_ON'
+    if (command === 'OFF') return 'TURN_OFF'
   }
 
   // Default: send as a message command with the action details

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { getAdminClient, serialize } from '@/lib/db'
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,17 +8,19 @@ export async function GET(request: NextRequest) {
     const deviceId = searchParams.get('deviceId')
     const status = searchParams.get('status')
 
-    const commands = await db.voiceCommand.findMany({
-      where: {
-        ...(deviceId ? { deviceId } : {}),
-        ...(status ? { status: status as any } : {}),
-      },
-      include: { device: true },
-      orderBy: { issuedAt: 'desc' },
-      take: limit,
-    })
+    let query = getAdminClient()
+      .from('voice_commands')
+      .select('*, device:devices(*)')
+      .order('issued_at', { ascending: false })
+      .limit(limit)
 
-    return NextResponse.json({ commands })
+    if (deviceId) query = query.eq('device_id', deviceId)
+    if (status) query = query.eq('status', status)
+
+    const { data, error } = await query
+    if (error) throw error
+
+    return NextResponse.json({ commands: serialize(data ?? []) })
   } catch (error) {
     console.error('GET /api/voice/commands error:', error)
     return NextResponse.json(

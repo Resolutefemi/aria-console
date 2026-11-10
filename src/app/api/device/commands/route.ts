@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { getAdminClient, serialize } from '@/lib/db'
 
 /**
  * GET /api/device/commands?deviceId=xxx
@@ -14,24 +14,35 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'deviceId is required' }, { status: 400 })
     }
 
-    const commands = await db.deviceCommand.findMany({
-      where: {
-        deviceId,
-        status: 'PENDING',
-      },
-      orderBy: { sentAt: 'asc' },
-      take: 10,
-    })
+    const admin = getAdminClient()
+
+    const { data, error } = await admin
+      .from('device_commands')
+      .select('*')
+      .eq('device_id', deviceId)
+      .eq('status', 'PENDING')
+      .order('sent_at', { ascending: true })
+      .limit(10)
+
+    if (error) throw error
+    const commands = data ?? []
 
     // Mark as delivered
     if (commands.length > 0) {
-      await db.deviceCommand.updateMany({
-        where: { id: { in: commands.map((c) => c.id) } },
-        data: { status: 'DELIVERED', deliveredAt: new Date() },
-      })
+      const { error: updateError } = await admin
+        .from('device_commands')
+        .update({
+          status: 'DELIVERED',
+          delivered_at: new Date().toISOString(),
+        })
+        .in(
+          'id',
+          commands.map((c) => c.id)
+        )
+      if (updateError) throw updateError
     }
 
-    return NextResponse.json({ commands })
+    return NextResponse.json({ commands: serialize(commands) })
   } catch (error) {
     console.error('GET /api/device/commands error:', error)
     return NextResponse.json({ error: 'Failed to fetch commands' }, { status: 500 })
@@ -52,16 +63,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'commandId and status are required' }, { status: 400 })
     }
 
-    const command = await db.deviceCommand.update({
-      where: { id: commandId },
-      data: {
+    const { data: command, error } = await getAdminClient()
+      .from('device_commands')
+      .update({
         status,
-        executedAt: new Date(),
+        executed_at: new Date().toISOString(),
         result: result ?? null,
-      },
-    })
+      })
+      .eq('id', commandId)
+      .select()
+      .single()
 
-    return NextResponse.json({ command })
+    if (error) throw error
+
+    return NextResponse.json({ command: serialize(command) })
   } catch (error) {
     console.error('POST /api/device/commands error:', error)
     return NextResponse.json({ error: 'Failed to update command' }, { status: 500 })

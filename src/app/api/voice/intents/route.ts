@@ -1,15 +1,22 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { getAdminClient, serialize } from '@/lib/db'
 
 export async function GET() {
   try {
     const now = new Date()
     const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-    const commands = await db.voiceCommand.findMany({
-      where: { issuedAt: { gte: last7d } },
-      select: { intent: true, status: true, confidence: true },
-    })
+    const { data, error } = await getAdminClient()
+      .from('voice_commands')
+      .select('intent, status, confidence')
+      .gte('issued_at', last7d.toISOString())
+
+    if (error) throw error
+    const commands = serialize<{
+      intent: string
+      status: string
+      confidence: number
+    }[]>(data ?? [])
 
     const byIntent = new Map<string, { count: number; successCount: number; avgConfidence: number }>()
     for (const c of commands) {

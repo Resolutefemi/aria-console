@@ -1,17 +1,22 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { getAdminClient } from '@/lib/db'
 
 export async function GET() {
   const start = Date.now()
   try {
-    // Simple database ping — count devices (works on both SQLite and Postgres)
-    await db.device.count()
+    // Simple database ping — count devices via Supabase
+    const { error } = await getAdminClient().from('devices').select('id', {
+      count: 'exact',
+      head: true,
+    })
+    if (error) throw error
+
     const durationMs = Date.now() - start
 
     return NextResponse.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
-      database: 'connected',
+      database: 'connected (supabase)',
       durationMs,
       version: process.env.NEXT_PUBLIC_APP_VERSION ?? 'unknown',
     })

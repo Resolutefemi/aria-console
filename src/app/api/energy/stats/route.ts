@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { getAdminClient, serialize } from '@/lib/db'
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,17 +8,28 @@ export async function GET(request: NextRequest) {
     const now = new Date()
     const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
 
-    const readings = await db.energyReading.findMany({
-      where: { recordedAt: { gte: since } },
-      select: { kilowatts: true, wattHours: true, recordedAt: true, deviceId: true },
-    })
+    const { data, error } = await getAdminClient()
+      .from('energy_readings')
+      .select('kilowatts, watt_hours, recorded_at, device_id')
+      .gte('recorded_at', since.toISOString())
+
+    if (error) throw error
+    const readings = serialize<{
+      kilowatts: number
+      wattHours: number
+      recordedAt: string
+      deviceId: string
+    }[]>(data ?? [])
 
     // Aggregate per day
     const byDay: { date: string; kwh: number; avgKw: number }[] = []
     for (let d = days - 1; d >= 0; d--) {
       const dayStart = new Date(now.getTime() - d * 24 * 60 * 60 * 1000)
       const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000)
-      const inDay = readings.filter((r) => r.recordedAt >= dayStart && r.recordedAt < dayEnd)
+      const inDay = readings.filter((r) => {
+        const t = new Date(r.recordedAt).getTime()
+        return t >= dayStart.getTime() && t < dayEnd.getTime()
+      })
 
       const kwh = inDay.reduce((s, r) => s + r.wattHours / 1000, 0)
       const avgKw = inDay.length > 0 ? inDay.reduce((s, r) => s + r.kilowatts, 0) / inDay.length : 0

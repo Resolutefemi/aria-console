@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { getAdminClient } from '@/lib/db'
 import { headers } from 'next/headers'
 
 /**
@@ -18,17 +18,22 @@ export async function recordAuditLog(params: {
     const ipAddress = forwarded ? forwarded.split(',')[0] : headersList.get('x-real-ip') ?? null
     const userAgent = headersList.get('user-agent')
 
-    return await db.auditLog.create({
-      data: {
+    const { data, error } = await getAdminClient()
+      .from('audit_logs')
+      .insert({
         action: params.action,
         resource: params.resource,
-        resourceId: params.resourceId,
-        metadata: params.metadata ? params.metadata as any : undefined,
-        userId: params.userId,
-        ipAddress,
-        userAgent,
-      },
-    })
+        resource_id: params.resourceId ?? null,
+        metadata: params.metadata ?? null,
+        user_id: params.userId ?? null,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+      })
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
   } catch (error) {
     // Audit logging should never break the main operation
     console.error('Failed to record audit log:', error)
