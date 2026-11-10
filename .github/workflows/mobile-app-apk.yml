@@ -50,9 +50,7 @@ jobs:
         run: flutter build apk --release
 
       - name: Rename APK
-        run: |
-          cp build/app/outputs/flutter-apk/app-release.apk \
-             build/app/outputs/flutter-apk/aria-console-mobile.apk
+        run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/aria-console-mobile.apk
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -67,19 +65,22 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd "$GITHUB_WORKSPACE"
+          APK="mobile-app/build/app/outputs/flutter-apk/aria-console-mobile.apk"
+          NOTES="$(mktemp)"
+          cat > "$NOTES" <<'NOTES_EOF'
+          Latest release APK of the Aria Console parent app.
+
+          Install: download aria-console-mobile.apk on your Android phone and open it.
+
+          Features: pairing, remote commands (lock, ring, screenshot, locate,
+          message), app blocking + daily limits, live location map, screen-time
+          charts, bedtime schedules, web filtering and realtime security alerts.
+          Light theme: white + purple - Dark theme: black + purple.
+          NOTES_EOF
           if gh release view mobile-latest >/dev/null 2>&1; then
-            gh release upload mobile-latest \
-              mobile-app/build/app/outputs/flutter-apk/aria-console-mobile.apk --clobber
+            gh release upload mobile-latest "$APK" --clobber
           else
-            gh release create mobile-latest \
-              mobile-app/build/app/outputs/flutter-apk/aria-console-mobile.apk \
-              --title "Aria Console — Mobile Parent App (latest)" \
-              --notes "Latest release APK of the Aria Console parent app.
-
-Install: download aria-console-mobile.apk on your Android phone and open it.
-
-Features: pairing, remote commands (lock, ring, screenshot, locate, message),
-app blocking + daily limits, live location map, screen-time charts,
-bedtime schedules, web filtering and realtime security alerts.
-Light theme: white + purple · Dark theme: black + purple."
+            gh release create mobile-latest "$APK" \
+              --title "Aria Console - Mobile Parent App (latest)" \
+              --notes-file "$NOTES"
           fi
