@@ -40,6 +40,7 @@
     "node_modules",
     "examples",
     "mini-services",
+    "scripts/dbtool",
     "native-companion",
     "companion-app",
     "skills"
