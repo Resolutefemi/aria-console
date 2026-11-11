@@ -34,6 +34,13 @@ dependencies:
   # Pairing-code QR
   qr_flutter: ^4.1.0
 
+# app_links 6.4.x references `flutter.compileSdkVersion` in its Gradle
+# file, which Flutter 3.24's plugin loader does not provide to library
+# modules — pin 6.2.1 (hardcodes compileSdk 34). Only used for deep
+# links, which this app does not rely on.
+dependency_overrides:
+  app_links: 6.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
