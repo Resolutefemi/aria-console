@@ -38,6 +38,8 @@
   ],
   "exclude": [
     "node_modules",
+    "examples",
+    "mini-services",
     "native-companion",
     "companion-app",
     "skills"

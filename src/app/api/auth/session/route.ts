@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { clearSessionCookie, readSessionTokens, resolveSession } from '@/lib/session'
+import {
+  clearSessionCookie,
+  readSessionTokens,
+  resolveSession,
+  setSessionCookie,
+} from '@/lib/session'
 
 /**
  * GET /api/auth/session
